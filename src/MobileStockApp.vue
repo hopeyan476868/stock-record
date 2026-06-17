@@ -13,6 +13,7 @@ const store = useStockStore();
 const showBuyModal = ref(false);
 const showEditModal = ref(false);
 const showSellModal = ref(false);
+const showUserMenu = ref(false);
 const selectedStock = ref<Stock | null>(null);
 const statusFilter = ref<'all' | StockStatus>('all');
 
@@ -21,6 +22,11 @@ const statusTabs: Array<{ key: 'all' | Extract<StockStatus, 'holding' | 'sold'>;
   { key: 'holding', label: '持仓' },
   { key: 'sold', label: '已卖' },
 ];
+
+const userInitial = computed(() => {
+  const email = store.userEmail || '';
+  return email.trim().charAt(0).toUpperCase() || 'U';
+});
 
 onMounted(() => {
   store.init();
@@ -120,13 +126,70 @@ async function handleLogin(email: string, password: string) {
 async function handleSignup(email: string, password: string) {
   await store.signup(email, password);
 }
+
+async function handleSyncLocal() {
+  await store.syncLocalToCloud();
+  showUserMenu.value = false;
+}
+
+async function handleLogout() {
+  await store.logout();
+  showUserMenu.value = false;
+}
 </script>
 
 <template>
   <div class="min-h-screen bg-slate-50 pb-24 text-slate-900">
     <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
-      <div class="mx-auto flex max-w-xl items-center justify-between gap-3 px-4 py-3">
-        <div>
+      <div class="relative mx-auto grid max-w-xl grid-cols-[3.25rem_1fr_3.25rem] items-center gap-3 px-4 py-3">
+        <div class="relative">
+          <button
+            v-if="store.userEmail"
+            type="button"
+            class="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-bold text-blue-700 shadow-sm"
+            aria-label="账号菜单"
+            @click="showUserMenu = !showUserMenu"
+            @mouseenter="showUserMenu = true"
+          >
+            {{ userInitial }}
+          </button>
+          <div v-else class="h-11 w-11"></div>
+
+          <div
+            v-if="store.userEmail && showUserMenu"
+            class="absolute left-0 top-12 z-50 w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-xl"
+            @mouseleave="showUserMenu = false"
+          >
+            <div class="border-b border-slate-100 px-3 py-2">
+              <div class="text-sm font-semibold text-slate-900">云端同步已开启</div>
+              <div class="mt-1 truncate text-xs text-slate-500">{{ store.userEmail }}</div>
+            </div>
+            <button
+              type="button"
+              class="mt-2 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              :disabled="store.loading"
+              @click="handleSyncLocal"
+            >
+              <span>{{ store.loading ? '同步中...' : '同步数据' }}</span>
+              <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v6h6M20 20v-6h-6M5 19a9 9 0 0014-3M19 5A9 9 0 005 8" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-600 hover:bg-red-50"
+              :disabled="store.loading"
+              @click="handleLogout"
+            >
+              <span>退出</span>
+              <svg class="h-4 w-4 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H3m12 0l-4-4m4 4l-4 4M21 4v16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="min-w-0 text-center">
           <h1 class="text-lg font-bold">股票记录</h1>
           <p class="number-font mt-0.5 text-xs text-slate-500">{{ sortedStocks.length }} 条记录</p>
         </div>
@@ -149,13 +212,12 @@ async function handleSignup(email: string, password: string) {
       </div>
 
       <AuthPanel
+        v-if="!store.userEmail"
         :cloud-enabled="store.cloudConfigured"
         :user-email="store.userEmail"
         :loading="store.loading"
         @login="handleLogin"
         @signup="handleSignup"
-        @logout="store.logout"
-        @sync-local="store.syncLocalToCloud"
       />
 
       <section class="grid grid-cols-3 gap-2">
