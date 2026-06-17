@@ -1,0 +1,60 @@
+import { z } from 'zod';
+
+export const BuyStockSchema = z.object({
+  status: z.literal('holding'),
+  marketTag: z.enum(['A股', '美股']).optional(),
+  name: z.string().min(1, '股票名称不能为空'),
+  buyQuantity: z.number().int().positive('买入数量必须为正数').optional(),
+  triggerTime: z.string().optional(),
+  triggerPrice: z.number().min(0).optional(),
+  buyPrice: z.number().positive('买入价格必须为正数'),
+  buyDate: z.string().min(1, '买入日期不能为空'),
+  buyReason: z.string().min(1, '策略备注不能为空'),
+  buyPsychology: z.string().optional(),
+  emotionTag: z.enum(['FOMO', '理性', '犹豫']).optional(),
+  roicOk: z.boolean().optional(),
+  grossMarginOk: z.boolean().optional(),
+  operatingCashFlowPositiveOk: z.boolean().optional(),
+  assetLiabilityRatioOk: z.boolean().optional(),
+  parentNetProfitGrowthOk: z.boolean().optional(),
+  profitGrowthOk: z.boolean().optional(),
+  revenueGrowthOk: z.boolean().optional(),
+  riskRewardOk: z.boolean().optional(),
+  weeklyCloseAboveEma20Ok: z.boolean().optional(),
+  weeklyEma20SlopeOk: z.boolean().optional(),
+  forceContinued: z.boolean().optional(),
+  // Deprecated legacy checklist fields kept only so old local records can still be read.
+  netMarginOk: z.boolean().optional(),
+  debtRatioOk: z.boolean().optional(),
+  priceAboveMa50Ok: z.boolean().optional(),
+  trendJudgment: z.enum(['上涨趋势', '下降趋势', '区间震荡', '区间', '下降', '上升']).optional(),
+  marketState: z.string().optional(),
+  buyStrategy: z.string().optional(),
+  technicalPattern: z.string().optional(),
+  patternRemark: z.string().optional(),
+  reviewDecision: z.enum(['pending', 'approved', 'rejected']).optional(),
+  decisionReason: z.string().optional(),
+  stopLossPrice: z.number().min(0).optional(),
+  targetPrice: z.number().min(0).optional(),
+  takeProfitPrice: z.number().min(0).optional(),
+  trackingAnalysis: z.string().optional(),
+  watchingOutcome: z.enum(['pending', 'success', 'failed']).optional(),
+});
+
+export const SellStockSchema = z.object({
+  sellPrice: z.number().positive('卖出价格必须为正数'),
+  sellDate: z.string().min(1, '卖出日期不能为空'),
+  sellQuantity: z.number().int().positive('卖出数量必须为正数').optional(),
+  sellEmotionTag: z.enum(['FOMO', '理性', '犹豫']).optional(),
+  sellType: z.enum(['take_profit', 'stop_loss']).optional(),
+  sellPsychology: z.string().optional(),
+  sellExecutionCheck: z.enum(['是', '否', '部分执行']).optional(),
+  patternBroken: z.boolean().optional(),
+  stopLossHit: z.boolean().optional(),
+  takeProfitHit: z.boolean().optional(),
+  reversalCandle: z.boolean().optional(),
+  sellSummary: z.string().optional(),
+});
+
+export type BuyStockInput = z.infer<typeof BuyStockSchema>;
+export type SellStockInput = z.infer<typeof SellStockSchema>;
