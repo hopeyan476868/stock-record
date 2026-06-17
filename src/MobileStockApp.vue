@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import BuyModal from '@/components/ui/BuyModal.vue';
 import EditStockModal from '@/components/ui/EditStockModal.vue';
 import SellModal from '@/components/ui/SellModal.vue';
+import AuthPanel from '@/components/ui/AuthPanel.vue';
 import { useStockStore } from '@/stores/stock';
 import type { BuyStockInput, SellStockInput } from '@/schemas/stock';
 import type { Stock, StockStatus } from '@/types/api';
@@ -111,6 +112,14 @@ async function handleDelete(stock: Stock) {
   if (!confirm(`确定要删除 ${stock.name} 的记录吗？`)) return;
   await store.removeStock(stock.id);
 }
+
+async function handleLogin(email: string, password: string) {
+  await store.login(email, password);
+}
+
+async function handleSignup(email: string, password: string) {
+  await store.signup(email, password);
+}
 </script>
 
 <template>
@@ -138,6 +147,16 @@ async function handleDelete(stock: Stock) {
       <div v-if="store.error" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
         {{ store.error }}
       </div>
+
+      <AuthPanel
+        :cloud-enabled="store.cloudConfigured"
+        :user-email="store.userEmail"
+        :loading="store.loading"
+        @login="handleLogin"
+        @signup="handleSignup"
+        @logout="store.logout"
+        @sync-local="store.syncLocalToCloud"
+      />
 
       <section class="grid grid-cols-3 gap-2">
         <div class="rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">

@@ -129,6 +129,7 @@ const sopPassed = computed(() => Boolean(
   form.value.operatingCashFlowPositiveOk &&
   form.value.assetLiabilityRatioOk &&
   form.value.parentNetProfitGrowthOk &&
+  form.value.riskRewardOk &&
   form.value.weeklyCloseAboveEma20Ok &&
   form.value.weeklyEma20SlopeOk &&
   strategyAllowed.value &&
@@ -256,7 +257,7 @@ function handleClose() {
 
               <section class="rounded-2xl border border-slate-200 bg-white p-4">
                 <div class="mb-4 text-sm font-semibold text-slate-900">系统预设检查项</div>
-                <div class="grid gap-3 md:grid-cols-5">
+                <div class="grid gap-3 md:grid-cols-4">
                   <label class="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3">
                     <input v-model="form.grossMarginOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                     <span class="text-sm text-slate-700">毛利率 &gt; 25%</span>
@@ -272,6 +273,10 @@ function handleClose() {
                   <label class="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3">
                     <input v-model="form.parentNetProfitGrowthOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                     <span class="text-sm text-slate-700">归母净利润同比 &gt; 20%</span>
+                  </label>
+                  <label class="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+                    <input v-model="form.riskRewardOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <span class="text-sm text-slate-700">盈亏比 &gt; 2</span>
                   </label>
                   <label class="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3">
                     <input v-model="form.weeklyCloseAboveEma20Ok" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />

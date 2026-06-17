@@ -1,7 +1,23 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { Stock, Stats } from '@/types/api';
-import { getStockList, addStock, sellStock, deleteStock, getStats, seedInitialStocks, updateStock, createStockBackup } from '@/utils/storage';
+import {
+  getStockList,
+  addStock,
+  sellStock,
+  deleteStock,
+  getStats,
+  seedInitialStocks,
+  updateStock,
+  createStockBackup,
+  getCurrentUserEmail,
+  isCloudSyncConfigured,
+  onCloudAuthChange,
+  signInToCloud,
+  signOutFromCloud,
+  signUpToCloud,
+  syncLocalRecordsToCloud,
+} from '@/utils/storage';
 import { providedStocks } from '@/data/providedStocks';
 
 export const useStockStore = defineStore('stock', () => {
@@ -11,6 +27,9 @@ export const useStockStore = defineStore('stock', () => {
   const loading = ref(false);
   const bootstrapping = ref(true);
   const error = ref<string | null>(null);
+  const userEmail = ref<string | null>(null);
+  const cloudConfigured = ref(isCloudSyncConfigured());
+  let unsubscribeAuth: (() => void) | null = null;
 
   // 计算属性
   const holdingStocks = computed(() => stocks.value.filter(s => s.status === 'holding'));
@@ -23,6 +42,13 @@ export const useStockStore = defineStore('stock', () => {
     error.value = null;
 
     try {
+      userEmail.value = await getCurrentUserEmail();
+      if (!unsubscribeAuth) {
+        unsubscribeAuth = onCloudAuthChange(async (email) => {
+          userEmail.value = email;
+          await Promise.all([fetchStocks(), fetchStats()]);
+        });
+      }
       await seedInitialStocks(providedStocks);
       await Promise.all([fetchStocks(), fetchStats()]);
     } finally {
@@ -162,12 +188,73 @@ export const useStockStore = defineStore('stock', () => {
     }
   }
 
+  async function login(email: string, password: string) {
+    loading.value = true;
+    error.value = null;
+    try {
+      await signInToCloud(email, password);
+      userEmail.value = await getCurrentUserEmail();
+      await Promise.all([fetchStocks(), fetchStats()]);
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : '登录失败';
+      throw e;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function signup(email: string, password: string) {
+    loading.value = true;
+    error.value = null;
+    try {
+      await signUpToCloud(email, password);
+      userEmail.value = await getCurrentUserEmail();
+      await Promise.all([fetchStocks(), fetchStats()]);
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : '注册失败';
+      throw e;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function logout() {
+    loading.value = true;
+    error.value = null;
+    try {
+      await signOutFromCloud();
+      userEmail.value = null;
+      await Promise.all([fetchStocks(), fetchStats()]);
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : '退出失败';
+      throw e;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function syncLocalToCloud() {
+    loading.value = true;
+    error.value = null;
+    try {
+      await syncLocalRecordsToCloud();
+      await Promise.all([fetchStocks(), fetchStats()]);
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : '同步失败';
+      throw e;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   return {
     stocks,
     stats,
     loading,
     bootstrapping,
     error,
+    userEmail,
+    cloudConfigured,
     holdingStocks,
     soldStocks,
     watchingStocks,
@@ -179,5 +266,9 @@ export const useStockStore = defineStore('stock', () => {
     closeStock,
     removeStock,
     backupStocks,
+    login,
+    signup,
+    logout,
+    syncLocalToCloud,
   };
 });

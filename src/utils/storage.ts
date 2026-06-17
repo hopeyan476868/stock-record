@@ -1,6 +1,15 @@
 import type { Stock, Stats, ReasonStat } from '@/types/api';
+import { isSupabaseConfigured, supabase } from '@/utils/supabase';
 
 const STORAGE_KEY = 'stock_investment_records';
+const CLOUD_TABLE = 'stock_records';
+
+type CloudStockRow = {
+  id: string;
+  record: Stock;
+  created_at: string;
+  updated_at: string;
+};
 
 function readLegacyLocalStorage(): Stock[] {
   try {
@@ -15,21 +24,86 @@ function writeLegacyLocalStorage(stocks: Stock[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(stocks));
 }
 
-async function getAll(): Promise<Stock[]> {
-  const normalizeLoadedStock = (stock: Stock): Stock => {
-    if (stock.status !== 'watching') return stock;
-    return {
-      ...stock,
-      status: 'holding',
-      reviewDecision: stock.reviewDecision === 'rejected' ? 'rejected' : 'approved',
-      watchingOutcome: undefined,
-    };
-  };
+async function getCurrentUser() {
+  if (!supabase) return null;
+  const { data, error } = await supabase.auth.getUser();
+  if (error) return null;
+  return data.user;
+}
 
+function normalizeLoadedStock(stock: Stock): Stock {
+  if (stock.status !== 'watching') return stock;
+  return {
+    ...stock,
+    status: 'holding',
+    reviewDecision: stock.reviewDecision === 'rejected' ? 'rejected' : 'approved',
+    watchingOutcome: undefined,
+  };
+}
+
+async function readCloudStocks(): Promise<Stock[] | null> {
+  if (!supabase) return null;
+  const user = await getCurrentUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from(CLOUD_TABLE)
+    .select('id, record, created_at, updated_at')
+    .eq('user_id', user.id)
+    .order('updated_at', { ascending: false });
+
+  if (error) throw new Error(`云端读取失败：${error.message}`);
+  const stocks = ((data || []) as CloudStockRow[]).map((row) => normalizeLoadedStock(row.record));
+  writeLegacyLocalStorage(stocks);
+  return stocks;
+}
+
+async function writeCloudStocks(stocks: Stock[]): Promise<boolean> {
+  if (!supabase) return false;
+  const user = await getCurrentUser();
+  if (!user) return false;
+
+  const { data: existingRows, error: readError } = await supabase
+    .from(CLOUD_TABLE)
+    .select('id')
+    .eq('user_id', user.id);
+
+  if (readError) throw new Error(`云端同步失败：${readError.message}`);
+
+  const nextIds = new Set(stocks.map((stock) => stock.id));
+  const removedIds = ((existingRows || []) as Array<{ id: string }>)
+    .map((row) => row.id)
+    .filter((id) => !nextIds.has(id));
+
+  if (removedIds.length) {
+    const { error } = await supabase.from(CLOUD_TABLE).delete().in('id', removedIds);
+    if (error) throw new Error(`云端删除失败：${error.message}`);
+  }
+
+  if (stocks.length) {
+    const rows = stocks.map((stock) => ({
+      id: stock.id,
+      user_id: user.id,
+      record: stock,
+      created_at: stock.createdAt,
+      updated_at: stock.updatedAt,
+    }));
+    const { error } = await supabase.from(CLOUD_TABLE).upsert(rows, { onConflict: 'id' });
+    if (error) throw new Error(`云端保存失败：${error.message}`);
+  }
+
+  writeLegacyLocalStorage(stocks);
+  return true;
+}
+
+async function getAll(): Promise<Stock[]> {
+  const cloudStocks = await readCloudStocks();
+  if (cloudStocks) return cloudStocks;
   return readLegacyLocalStorage().map(normalizeLoadedStock);
 }
 
 async function saveAll(stocks: Stock[], _reason = 'manual'): Promise<void> {
+  if (await writeCloudStocks(stocks)) return;
   writeLegacyLocalStorage(stocks);
 }
 
@@ -198,6 +272,58 @@ export async function deleteStock(id: string): Promise<{ message: string }> {
 
 export async function createStockBackup(): Promise<{ backupPath: string } | null> {
   return null;
+}
+
+export function isCloudSyncConfigured(): boolean {
+  return isSupabaseConfigured;
+}
+
+export async function getCurrentUserEmail(): Promise<string | null> {
+  const user = await getCurrentUser();
+  return user?.email || null;
+}
+
+export function onCloudAuthChange(callback: (email: string | null) => void): () => void {
+  if (!supabase) return () => undefined;
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    callback(session?.user.email || null);
+  });
+  return () => data.subscription.unsubscribe();
+}
+
+export async function signInToCloud(email: string, password: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase 未配置');
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw new Error(error.message);
+}
+
+export async function signUpToCloud(email: string, password: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase 未配置');
+  const { error } = await supabase.auth.signUp({ email, password });
+  if (error) throw new Error(error.message);
+}
+
+export async function signOutFromCloud(): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase.auth.signOut();
+  if (error) throw new Error(error.message);
+}
+
+export async function syncLocalRecordsToCloud(): Promise<number> {
+  const localStocks = readLegacyLocalStorage().map(normalizeLoadedStock);
+  const cloudStocks = (await readCloudStocks()) || [];
+  const merged = new Map<string, Stock>();
+
+  [...cloudStocks, ...localStocks].forEach((stock) => {
+    const current = merged.get(stock.id);
+    if (!current || new Date(stock.updatedAt).getTime() >= new Date(current.updatedAt).getTime()) {
+      merged.set(stock.id, stock);
+    }
+  });
+
+  const mergedStocks = [...merged.values()];
+  await saveAll(mergedStocks, 'local-to-cloud-sync');
+  return mergedStocks.length;
 }
 
 export async function getStats(): Promise<{ data: Stats }> {

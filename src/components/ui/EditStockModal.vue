@@ -371,6 +371,10 @@ function handleClose() {
                       <span class="text-sm text-slate-700">归母净利润同比 &gt; 20%</span>
                     </label>
                     <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2">
+                      <input v-model="form.riskRewardOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span class="text-sm text-slate-700">盈亏比 &gt; 2</span>
+                    </label>
+                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2">
                       <input v-model="form.weeklyCloseAboveEma20Ok" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                       <span class="text-sm text-slate-700">周线收盘 &gt; EMA20</span>
                     </label>
