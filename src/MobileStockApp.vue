@@ -23,6 +23,26 @@ const statusTabs: Array<{ key: 'all' | Extract<StockStatus, 'holding' | 'sold'>;
   { key: 'sold', label: '已卖' },
 ];
 
+type AnalysisRow = {
+  key: string;
+  total: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  lossRate: number;
+  avgWin: number;
+  avgLoss: number;
+};
+
+const holdingBuckets = [
+  { key: '1天', min: 1, max: 1 },
+  { key: '1-3天', min: 2, max: 3 },
+  { key: '3-5天', min: 4, max: 5 },
+  { key: '5-10天', min: 6, max: 10 },
+  { key: '10-20天', min: 11, max: 20 },
+  { key: '20天以上', min: 21, max: Number.POSITIVE_INFINITY },
+];
+
 const userInitial = computed(() => {
   const email = store.userEmail || '';
   return email.trim().charAt(0).toUpperCase() || 'U';
@@ -47,14 +67,76 @@ const totalCost = computed(() =>
 
 const soldReturn = computed(() =>
   store.soldStocks.reduce((sum, stock) => {
-    if (stock.sellPrice == null) return sum;
-    return sum + ((stock.sellPrice - stock.buyPrice) / stock.buyPrice) * 100;
+    const value = calcReturnValue(stock);
+    return value == null ? sum : sum + value;
   }, 0)
 );
+
+function calcReturnValue(stock: Stock): number | null {
+  if (stock.status !== 'sold' || stock.sellPrice == null || stock.buyPrice <= 0) return null;
+  return ((stock.sellPrice - stock.buyPrice) / stock.buyPrice) * 100;
+}
+
+function calcHoldingDays(stock: Stock): number | null {
+  if (stock.status !== 'sold' || !stock.buyDate || !stock.sellDate) return null;
+  const buy = new Date(stock.buyDate);
+  const sell = new Date(stock.sellDate);
+  if (Number.isNaN(buy.getTime()) || Number.isNaN(sell.getTime())) return null;
+  const diff = Math.floor((sell.getTime() - buy.getTime()) / (24 * 60 * 60 * 1000));
+  return Math.max(1, diff);
+}
+
+function createAnalysisRow(key: string, values: number[]): AnalysisRow {
+  const wins = values.filter((value) => value > 0);
+  const losses = values.filter((value) => value <= 0);
+  return {
+    key,
+    total: values.length,
+    wins: wins.length,
+    losses: losses.length,
+    winRate: values.length ? (wins.length / values.length) * 100 : 0,
+    lossRate: values.length ? (losses.length / values.length) * 100 : 0,
+    avgWin: wins.length ? wins.reduce((sum, value) => sum + value, 0) / wins.length : 0,
+    avgLoss: losses.length ? losses.reduce((sum, value) => sum + value, 0) / losses.length : 0,
+  };
+}
+
+const strategyAnalysis = computed(() => {
+  const groups = new Map<string, number[]>();
+  for (const stock of store.soldStocks) {
+    const value = calcReturnValue(stock);
+    if (value == null) continue;
+    const key = stock.buyStrategy || stock.technicalPattern || '未标记';
+    groups.set(key, [...(groups.get(key) || []), value]);
+  }
+  return [...groups.entries()]
+    .map(([key, values]) => createAnalysisRow(key, values))
+    .sort((a, b) => b.total - a.total || b.winRate - a.winRate);
+});
+
+const holdingDaysAnalysis = computed(() => {
+  const groups = new Map(holdingBuckets.map((bucket) => [bucket.key, [] as number[]]));
+  for (const stock of store.soldStocks) {
+    const value = calcReturnValue(stock);
+    const days = calcHoldingDays(stock);
+    if (value == null || days == null) continue;
+    const bucket = holdingBuckets.find((item) => days >= item.min && days <= item.max);
+    if (!bucket) continue;
+    groups.get(bucket.key)?.push(value);
+  }
+  return holdingBuckets
+    .map((bucket) => createAnalysisRow(bucket.key, groups.get(bucket.key) || []))
+    .filter((row) => row.total > 0);
+});
 
 function formatMoney(value?: number): string {
   if (value == null || !Number.isFinite(value)) return '--';
   return value.toFixed(2);
+}
+
+function formatPercent(value: number): string {
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${value.toFixed(1)}%`;
 }
 
 function formatDate(value?: string): string {
@@ -65,9 +147,8 @@ function formatDate(value?: string): string {
 }
 
 function formatReturn(stock: Stock): string {
-  if (stock.status !== 'sold' || stock.sellPrice == null || stock.buyPrice <= 0) return '--';
-  const value = ((stock.sellPrice - stock.buyPrice) / stock.buyPrice) * 100;
-  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  const value = calcReturnValue(stock);
+  return value == null ? '--' : `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 }
 
 function statusLabel(status: StockStatus): string {
@@ -157,7 +238,7 @@ async function handleLogout() {
 
           <div
             v-if="store.userEmail && showUserMenu"
-            class="absolute left-0 top-12 z-50 w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-xl"
+            class="absolute left-0 top-12 z-50 max-h-[78vh] w-[22rem] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border border-slate-200 bg-white p-2 shadow-xl"
             @mouseleave="showUserMenu = false"
           >
             <div class="border-b border-slate-100 px-3 py-2">
@@ -186,6 +267,76 @@ async function handleLogout() {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H3m12 0l-4-4m4 4l-4 4M21 4v16" />
               </svg>
             </button>
+
+            <div class="mt-3 border-t border-slate-100 pt-3">
+              <div class="px-3 text-sm font-bold text-slate-900">策略分析</div>
+              <div v-if="strategyAnalysis.length" class="mt-2 space-y-2">
+                <div
+                  v-for="row in strategyAnalysis"
+                  :key="row.key"
+                  class="rounded-lg bg-slate-50 px-3 py-2"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="truncate text-xs font-semibold text-slate-800">{{ row.key }}</div>
+                    <div class="number-font text-xs text-slate-400">{{ row.total }}笔</div>
+                  </div>
+                  <div class="mt-2 grid grid-cols-4 gap-2 text-xs">
+                    <div>
+                      <div class="text-slate-400">成功</div>
+                      <div class="number-font font-semibold text-emerald-600">{{ row.winRate.toFixed(0) }}%</div>
+                    </div>
+                    <div>
+                      <div class="text-slate-400">失败</div>
+                      <div class="number-font font-semibold text-red-600">{{ row.lossRate.toFixed(0) }}%</div>
+                    </div>
+                    <div>
+                      <div class="text-slate-400">盈利比</div>
+                      <div class="number-font font-semibold text-emerald-600">{{ formatPercent(row.avgWin) }}</div>
+                    </div>
+                    <div>
+                      <div class="text-slate-400">亏损比</div>
+                      <div class="number-font font-semibold text-red-600">{{ formatPercent(row.avgLoss) }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="mt-2 px-3 py-2 text-xs text-slate-400">暂无已卖出样本</div>
+            </div>
+
+            <div class="mt-3 border-t border-slate-100 pt-3">
+              <div class="px-3 text-sm font-bold text-slate-900">持有天数分析</div>
+              <div v-if="holdingDaysAnalysis.length" class="mt-2 space-y-2">
+                <div
+                  v-for="row in holdingDaysAnalysis"
+                  :key="row.key"
+                  class="rounded-lg bg-slate-50 px-3 py-2"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="text-xs font-semibold text-slate-800">{{ row.key }}</div>
+                    <div class="number-font text-xs text-slate-400">{{ row.total }}笔</div>
+                  </div>
+                  <div class="mt-2 grid grid-cols-4 gap-2 text-xs">
+                    <div>
+                      <div class="text-slate-400">成功</div>
+                      <div class="number-font font-semibold text-emerald-600">{{ row.winRate.toFixed(0) }}%</div>
+                    </div>
+                    <div>
+                      <div class="text-slate-400">失败</div>
+                      <div class="number-font font-semibold text-red-600">{{ row.lossRate.toFixed(0) }}%</div>
+                    </div>
+                    <div>
+                      <div class="text-slate-400">盈利比</div>
+                      <div class="number-font font-semibold text-emerald-600">{{ formatPercent(row.avgWin) }}</div>
+                    </div>
+                    <div>
+                      <div class="text-slate-400">亏损比</div>
+                      <div class="number-font font-semibold text-red-600">{{ formatPercent(row.avgLoss) }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="mt-2 px-3 py-2 text-xs text-slate-400">暂无已卖出样本</div>
+            </div>
           </div>
         </div>
 
