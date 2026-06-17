@@ -8,7 +8,7 @@ export interface StrategyRule {
 }
 
 export const TREND_STATE_OPTIONS: Record<string, string[]> = {
-  上涨趋势: ['强上升', '普通上升', '高位加速', '破位反弹'],
+  上涨趋势: ['强上升', '普通上升', '上涨回调', '高位加速', '高位震荡', '破位反弹'],
   下降趋势: ['反弹', '震荡区间'],
   区间震荡: ['区间中部', '区间下沿', '区间上沿', '上沿突破'],
 };
@@ -41,8 +41,8 @@ export function getStrategyRule(trendValue?: string, stateValue?: string): Strat
   if (trend === '上涨趋势' && state === '强上升') {
     return {
       action: 'buy',
-      title: '可以激进一点，H1 可用',
-      description: '强趋势背景里允许用更紧凑的小回调买点；若连续加速且离 EMA20 过远，应切到高位加速，只做持仓管理。',
+      title: '强上升：可以激进一点，H1 可用',
+      description: '连续推升、回调浅，说明主动买盘仍强。买入建议：优先强趋势小回调 H1；次选 EMA20 附近 H2 或突破回踩。若价格离 EMA20 过远，应切到高位加速，只做持仓管理。',
       allowedStrategies: ['强趋势小回调H1', 'EMA20附近H2', '突破回踩'],
     };
   }
@@ -50,26 +50,44 @@ export function getStrategyRule(trendValue?: string, stateValue?: string): Strat
   if (trend === '上涨趋势' && state === '普通上升') {
     return {
       action: 'buy',
-      title: '不能用 H1，等 H2 或突破回踩',
-      description: '普通上升的动量不够强，买点要降低追高概率。',
-      allowedStrategies: ['EMA20附近H2', '突破回踩'],
+      title: '普通上升：不能用 H1，等 H2 或突破回踩',
+      description: '正常上升但动量不算极强，H1 容易买早。买入建议：等 EMA20 附近 H2、前高/平台突破后的回踩确认，或突破回踩后再介入。',
+      allowedStrategies: ['EMA20附近H2', '前高回踩', '突破回踩'],
+    };
+  }
+
+  if (trend === '上涨趋势' && state === '上涨回调') {
+    return {
+      action: 'buy',
+      title: '上涨回调：趋势未坏，等回调结束信号',
+      description: '价格从上升段回落，但尚未破坏关键低点或趋势均线。买入建议：不在下跌过程中提前接，等回调低位 H2、EMA20 附近 H2、前高回踩不破，或强板块回调转强。',
+      allowedStrategies: ['回调低位H2', 'EMA20附近H2', '前高回踩', '强板块回调转强'],
     };
   }
 
   if (trend === '上涨趋势' && state === '高位加速') {
     return {
       action: 'manage',
-      title: '不新开仓，只做持仓管理',
-      description: '高位加速阶段容易进入情绪化追涨区，新记录默认不通过。',
+      title: '高位加速：不新开仓，只做持仓管理',
+      description: '连续加速上涨后，风险收益比通常变差，容易进入情绪化追涨区。买入建议：不新开仓；已有持仓只做止盈、移动止损和仓位管理。',
       allowedStrategies: ['持仓管理'],
+    };
+  }
+
+  if (trend === '上涨趋势' && state === '高位震荡') {
+    return {
+      action: 'buy',
+      title: '高位震荡：上涨后横盘，等边界信号',
+      description: '大背景仍是上涨，但价格在高位横盘整理，例如 20 根 K 线平台。买入建议：不在区间中部买；等平台突破、突破回踩，或区间下沿假破收回/区间下沿 H2。',
+      allowedStrategies: ['平台突破', '突破回踩', '区间下沿假破收回', '区间下沿H2'],
     };
   }
 
   if (trend === '上涨趋势' && state === '破位反弹') {
     return {
       action: 'avoid',
-      title: '结构受损，默认不买',
-      description: '等重新站回关键位并形成新的有效结构后再评估。',
+      title: '破位反弹：结构受损，默认不买',
+      description: '上涨结构已经被破坏，当前反弹可能只是反抽。买入建议：默认不买；至少等重新站回关键位，并重新形成有效上升结构后再评估。',
       allowedStrategies: ['不买', '等重新站回关键位'],
     };
   }
@@ -140,7 +158,7 @@ export function getBuyPositionOptions(trendValue?: string, stateValue?: string):
   if (rule.allowedStrategies.length > 0) return rule.allowedStrategies;
   if (rule.action === 'avoid') return ['不买'];
   if (rule.action === 'manage') return ['持仓管理'];
-  return ['平台突破', '突破回踩', 'EMA20附近H2', '强趋势小回调H1', '区间下沿假破收回', '强板块回调转强'];
+  return ['平台突破', '突破回踩', 'EMA20附近H2', '强趋势小回调H1', '回调低位H2', '前高回踩', '区间下沿假破收回', '区间下沿H2', '强板块回调转强'];
 }
 
 export function getStrategyRuleTone(action: StrategyRuleAction): string {
