@@ -20,6 +20,7 @@ export const BuyStockSchema = z.object({
   profitGrowthOk: z.boolean().optional(),
   revenueGrowthOk: z.boolean().optional(),
   riskRewardOk: z.boolean().optional(),
+  riskRewardRatio: z.enum(['gt2', 'eq1']).optional(),
   weeklyCloseAboveEma20Ok: z.boolean().optional(),
   weeklyEma20SlopeOk: z.boolean().optional(),
   forceContinued: z.boolean().optional(),

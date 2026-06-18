@@ -32,9 +32,13 @@ async function getCurrentUser() {
 }
 
 function normalizeLoadedStock(stock: Stock): Stock {
-  if (stock.status !== 'watching') return stock;
-  return {
+  const normalized = {
     ...stock,
+    riskRewardRatio: stock.riskRewardRatio || (stock.riskRewardOk ? 'gt2' : undefined),
+  };
+  if (stock.status !== 'watching') return normalized;
+  return {
+    ...normalized,
     status: 'holding',
     reviewDecision: stock.reviewDecision === 'rejected' ? 'rejected' : 'approved',
     watchingOutcome: undefined,
@@ -133,6 +137,7 @@ function normalizeStockForSave(stock: Omit<Stock, 'id' | 'createdAt' | 'updatedA
     profitGrowthOk: Boolean(stock.profitGrowthOk),
     revenueGrowthOk: stock.revenueGrowthOk == null ? Boolean(stock.profitGrowthOk) : Boolean(stock.revenueGrowthOk),
     riskRewardOk: Boolean(stock.riskRewardOk),
+    riskRewardRatio: stock.riskRewardRatio || (stock.riskRewardOk ? 'gt2' : undefined),
     weeklyCloseAboveEma20Ok: Boolean(stock.weeklyCloseAboveEma20Ok),
     weeklyEma20SlopeOk: Boolean(stock.weeklyEma20SlopeOk),
     forceContinued: Boolean(stock.forceContinued),

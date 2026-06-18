@@ -8,6 +8,7 @@ export type TrendJudgment = '上涨趋势' | '下降趋势' | '区间震荡' | '
 export type TechnicalPattern = string;
 export type SellType = 'take_profit' | 'stop_loss';
 export type SellExecutionCheck = '是' | '否' | '部分执行';
+export type RiskRewardRatio = 'gt2' | 'eq1';
 
 export interface Stock {
   id: string;
@@ -30,6 +31,7 @@ export interface Stock {
   /** @deprecated legacy checklist field; new records use parentNetProfitGrowthOk */
   revenueGrowthOk?: boolean;
   riskRewardOk?: boolean;
+  riskRewardRatio?: RiskRewardRatio;
   weeklyCloseAboveEma20Ok?: boolean;
   weeklyEma20SlopeOk?: boolean;
   forceContinued?: boolean;

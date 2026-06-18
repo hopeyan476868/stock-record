@@ -42,6 +42,7 @@ const form = ref<EditableStockInput>({
   profitGrowthOk: false,
   revenueGrowthOk: false,
   riskRewardOk: false,
+  riskRewardRatio: undefined,
   weeklyCloseAboveEma20Ok: false,
   weeklyEma20SlopeOk: false,
   forceContinued: false,
@@ -96,6 +97,7 @@ watch(() => props.open, (isOpen) => {
       profitGrowthOk: Boolean(props.stock.profitGrowthOk),
       revenueGrowthOk: props.stock.revenueGrowthOk == null ? Boolean(props.stock.profitGrowthOk) : Boolean(props.stock.revenueGrowthOk),
       riskRewardOk: Boolean(props.stock.riskRewardOk),
+      riskRewardRatio: props.stock.riskRewardRatio || (props.stock.riskRewardOk ? 'gt2' : undefined),
       weeklyCloseAboveEma20Ok: Boolean(props.stock.weeklyCloseAboveEma20Ok),
       weeklyEma20SlopeOk: Boolean(props.stock.weeklyEma20SlopeOk),
       forceContinued: Boolean(props.stock.forceContinued),
@@ -215,6 +217,7 @@ function handleSubmit() {
     decisionReason: form.value.decisionReason?.trim() || '',
     trackingAnalysis: '',
     technicalPattern: form.value.buyStrategy || form.value.technicalPattern,
+    riskRewardOk: Boolean(form.value.riskRewardRatio),
     triggerPrice: Number(form.value.triggerPrice || 0),
     targetPrice: Number(form.value.targetPrice || 0),
     takeProfitPrice: Number(form.value.targetPrice || 0),
@@ -370,10 +373,19 @@ function handleClose() {
                       <input v-model="form.parentNetProfitGrowthOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                       <span class="text-sm text-slate-700">归母净利润同比 &gt; 20%</span>
                     </label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2">
-                      <input v-model="form.riskRewardOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span class="text-sm text-slate-700">盈亏比 &gt; 2</span>
-                    </label>
+                    <div class="rounded-xl bg-white px-3 py-2 md:col-span-2">
+                      <div class="mb-2 text-sm text-slate-700">盈亏比核查（二选一）</div>
+                      <div class="flex flex-wrap gap-4">
+                        <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                          <input v-model="form.riskRewardRatio" type="radio" value="gt2" class="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500" />
+                          <span>盈亏比 &gt; 2</span>
+                        </label>
+                        <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                          <input v-model="form.riskRewardRatio" type="radio" value="eq1" class="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500" />
+                          <span>盈亏比 = 1</span>
+                        </label>
+                      </div>
+                    </div>
                     <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2">
                       <input v-model="form.weeklyCloseAboveEma20Ok" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                       <span class="text-sm text-slate-700">周线收盘 &gt; EMA20</span>
