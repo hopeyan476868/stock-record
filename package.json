@@ -12,6 +12,7 @@
     "dev": "vite --host 127.0.0.1 --port 5174 --strictPort",
     "build": "vue-tsc -b && vite build",
     "build:pwa": "npm run build",
+    "test:rules": "node --test tests/buyStrategyEngine.test.ts",
     "preview": "vite preview --host 127.0.0.1 --port 4174 --strictPort"
   },
   "dependencies": {

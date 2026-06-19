@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import TechnicalPatternSelect from '@/components/ui/TechnicalPatternSelect.vue';
-import type { EmotionTag, ReviewDecision, SellExecutionCheck, Stock, StockMarketTag } from '@/types/api';
+import BuyStrategyPanel from '@/components/ui/BuyStrategyPanel.vue';
+import type { EmotionTag, SellExecutionCheck, Stock, StockMarketTag } from '@/types/api';
 import {
-  getBuyPositionOptions,
-  getStateOptionsForTrend,
-  getStrategyRule,
-  getStrategyRuleTone,
-  PATTERN_REMARK_OPTIONS,
-} from '@/utils/tradingRules';
+  evaluateBuyStrategy,
+  getStrategySummary,
+  migrateLegacyStrategy,
+} from '@/utils/buyStrategyEngine';
 
 type EditableStockInput = Omit<Stock, 'id' | 'createdAt' | 'updatedAt'>;
 
@@ -43,6 +41,10 @@ const form = ref<EditableStockInput>({
   revenueGrowthOk: false,
   riskRewardOk: false,
   riskRewardRatio: undefined,
+  turnoverRateOk: false,
+  tradingAmountOk: false,
+  superLargeNetInflowOk: false,
+  superLargeNetInflowRatioOk: false,
   weeklyCloseAboveEma20Ok: false,
   weeklyEma20SlopeOk: false,
   forceContinued: false,
@@ -52,6 +54,10 @@ const form = ref<EditableStockInput>({
   buyStrategy: '强趋势小回调H1',
   technicalPattern: '强趋势小回调H1',
   patternRemark: '平台整理',
+  marketStructure: 'UP',
+  trendQuality: 'STRONG',
+  priceLocation: 'TREND_PULLBACK',
+  riskState: 'NONE',
   reviewDecision: 'pending',
   decisionReason: '',
   stopLossPrice: 0,
@@ -78,6 +84,7 @@ const errors = ref<Record<string, string>>({});
 
 watch(() => props.open, (isOpen) => {
   if (isOpen && props.stock) {
+    const migratedStrategy = migrateLegacyStrategy(props.stock);
     form.value = {
       marketTag: props.stock.marketTag || 'A股',
       name: props.stock.name,
@@ -98,6 +105,10 @@ watch(() => props.open, (isOpen) => {
       revenueGrowthOk: props.stock.revenueGrowthOk == null ? Boolean(props.stock.profitGrowthOk) : Boolean(props.stock.revenueGrowthOk),
       riskRewardOk: Boolean(props.stock.riskRewardOk),
       riskRewardRatio: props.stock.riskRewardRatio || (props.stock.riskRewardOk ? 'gt2' : undefined),
+      turnoverRateOk: Boolean(props.stock.turnoverRateOk),
+      tradingAmountOk: Boolean(props.stock.tradingAmountOk),
+      superLargeNetInflowOk: Boolean(props.stock.superLargeNetInflowOk),
+      superLargeNetInflowRatioOk: Boolean(props.stock.superLargeNetInflowRatioOk),
       weeklyCloseAboveEma20Ok: Boolean(props.stock.weeklyCloseAboveEma20Ok),
       weeklyEma20SlopeOk: Boolean(props.stock.weeklyEma20SlopeOk),
       forceContinued: Boolean(props.stock.forceContinued),
@@ -109,6 +120,7 @@ watch(() => props.open, (isOpen) => {
       buyStrategy: props.stock.buyStrategy || props.stock.technicalPattern || '强趋势小回调H1',
       technicalPattern: props.stock.technicalPattern || props.stock.buyStrategy || '强趋势小回调H1',
       patternRemark: props.stock.patternRemark || '平台整理',
+      ...migratedStrategy,
       reviewDecision: props.stock.reviewDecision || (props.stock.status === 'holding' || props.stock.status === 'sold' ? 'approved' : 'pending'),
       decisionReason: props.stock.decisionReason || '',
       stopLossPrice: props.stock.stopLossPrice || 0,
@@ -142,21 +154,9 @@ const expectedReturn = computed(() => {
 
 const emotionOptions: EmotionTag[] = ['理性', '犹豫', 'FOMO'];
 const marketTagOptions: StockMarketTag[] = ['A股', '美股'];
-const trendOptions = ['上涨趋势', '下降趋势', '区间震荡'];
-
-const strategyRule = computed(() => getStrategyRule(form.value.trendJudgment, form.value.marketState));
-const strategyRuleTone = computed(() => getStrategyRuleTone(strategyRule.value.action));
-const stateOptions = computed(() => getStateOptionsForTrend(form.value.trendJudgment));
-const buyPositionOptions = computed(() => getBuyPositionOptions(form.value.trendJudgment, form.value.marketState));
-const strategyAllowed = computed(() => {
-  if (strategyRule.value.action !== 'buy') return false;
-  return strategyRule.value.allowedStrategies.length === 0 || strategyRule.value.allowedStrategies.includes(form.value.buyStrategy || '');
-});
-const decisionOptions: Array<{ value: ReviewDecision; label: string }> = [
-  { value: 'pending', label: '待评估' },
-  { value: 'approved', label: '通过' },
-  { value: 'rejected', label: '拒绝' },
-];
+const strategyInput = computed(() => ({ marketStructure: form.value.marketStructure || 'UP', trendQuality: form.value.trendQuality || 'STRONG', priceLocation: form.value.priceLocation || 'TREND_PULLBACK', riskState: form.value.riskState || 'NONE' }));
+const strategyOutput = computed(() => evaluateBuyStrategy(strategyInput.value));
+const strategySummary = computed(() => getStrategySummary(strategyInput.value, strategyOutput.value));
 
 const priceMatch = computed<{ label: string; check: SellExecutionCheck; tone: string }>(() => {
   if (!isSold.value) return { label: '未卖出', check: '部分执行', tone: 'text-slate-500' };
@@ -170,24 +170,12 @@ const priceMatch = computed<{ label: string; check: SellExecutionCheck; tone: st
   return { label: '未触发计划目标/止损价', check: '否', tone: 'text-amber-600' };
 });
 
-watch([() => form.value.trendJudgment, () => form.value.marketState], () => {
-  if (stateOptions.value.length > 0 && !stateOptions.value.includes(form.value.marketState || '')) {
-    form.value.marketState = stateOptions.value[0];
-    return;
-  }
-  if (!buyPositionOptions.value.includes(form.value.buyStrategy || '')) {
-    form.value.buyStrategy = buyPositionOptions.value[0] || '';
-    form.value.technicalPattern = form.value.buyStrategy || '';
-  }
-});
-
 function validate() {
   errors.value = {};
 
   if (!form.value.name.trim()) errors.value.name = '股票名称不能为空';
   if (!(form.value.buyPrice > 0)) errors.value.buyPrice = '买入价格必须大于 0';
   if (!form.value.buyDate) errors.value.buyDate = '买入日期不能为空';
-  if (!form.value.buyReason.trim()) errors.value.buyReason = '策略备注不能为空';
 
   if (isSold.value) {
     if (!(Number(form.value.sellPrice) > 0)) errors.value.sellPrice = '卖出价格必须大于 0';
@@ -213,10 +201,15 @@ function handleSubmit() {
   emit('submit', {
     ...form.value,
     name: form.value.name.trim(),
-    buyReason: form.value.buyReason.trim(),
+    buyReason: strategySummary.value,
     decisionReason: form.value.decisionReason?.trim() || '',
     trackingAnalysis: '',
-    technicalPattern: form.value.buyStrategy || form.value.technicalPattern,
+    technicalPattern: undefined,
+    patternRemark: undefined,
+    strategyDecision: strategyOutput.value.decision,
+    entryTypes: strategyOutput.value.entryTypes,
+    strategyNote: strategyOutput.value.note,
+    reviewDecision: strategyOutput.value.decision === 'BUY' ? 'approved' : 'rejected',
     riskRewardOk: Boolean(form.value.riskRewardRatio),
     triggerPrice: Number(form.value.triggerPrice || 0),
     targetPrice: Number(form.value.targetPrice || 0),
@@ -326,32 +319,7 @@ function handleClose() {
                 </div>
 
                 <div class="col-span-2">
-                  <label class="block text-sm font-semibold text-slate-700 mb-2">策略备注</label>
-                  <input v-model="form.buyReason" type="text" class="input-field" :class="{ 'border-red-400 bg-red-50': errors.buyReason }" />
-                  <p v-if="errors.buyReason" class="mt-1.5 text-xs text-red-600">{{ errors.buyReason }}</p>
-                </div>
-
-                <div>
-                  <TechnicalPatternSelect v-model="form.trendJudgment" label="背景" option-type="trend" :options="trendOptions" readonly-options />
-                </div>
-                <div class="col-span-2">
-                  <TechnicalPatternSelect v-model="form.marketState" label="状态" option-type="marketState" :options="stateOptions" readonly-options />
-                </div>
-                <div class="col-span-2">
-                  <TechnicalPatternSelect v-model="form.buyStrategy" label="买入位置" option-type="buyStrategy" :options="buyPositionOptions" readonly-options />
-                </div>
-                <div class="col-span-2">
-                  <TechnicalPatternSelect v-model="form.patternRemark" label="形态" option-type="patternRemark" :options="PATTERN_REMARK_OPTIONS" readonly-options />
-                </div>
-                <div class="col-span-2 rounded-2xl border px-4 py-3" :class="strategyRuleTone">
-                  <div class="text-sm font-semibold">{{ strategyRule.title }}</div>
-                  <div class="mt-1 text-xs leading-5">{{ strategyRule.description }}</div>
-                  <div v-if="strategyRule.allowedStrategies.length" class="mt-2 text-xs">
-                    推荐场景：{{ strategyRule.allowedStrategies.join(' / ') }}
-                  </div>
-                  <div v-if="!strategyAllowed" class="mt-2 text-xs font-semibold">
-                    当前组合不支持「{{ form.buyStrategy }}」。
-                  </div>
+                  <BuyStrategyPanel v-model:market-structure="form.marketStructure" v-model:trend-quality="form.trendQuality" v-model:price-location="form.priceLocation" v-model:risk-state="form.riskState" />
                 </div>
 
                 <div class="col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -373,19 +341,11 @@ function handleClose() {
                       <input v-model="form.parentNetProfitGrowthOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                       <span class="text-sm text-slate-700">归母净利润同比 &gt; 20%</span>
                     </label>
-                    <div class="rounded-xl bg-white px-3 py-2 md:col-span-2">
-                      <div class="mb-2 text-sm text-slate-700">盈亏比核查（二选一）</div>
-                      <div class="flex flex-wrap gap-4">
-                        <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-                          <input v-model="form.riskRewardRatio" type="radio" value="gt2" class="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500" />
-                          <span>盈亏比 &gt; 2</span>
-                        </label>
-                        <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-                          <input v-model="form.riskRewardRatio" type="radio" value="eq1" class="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500" />
-                          <span>盈亏比 = 1</span>
-                        </label>
-                      </div>
-                    </div>
+                    <label class="text-sm text-slate-700">盈亏比<select v-model="form.riskRewardRatio" class="input-field mt-2"><option :value="undefined">请选择</option><option value="gt2">&gt; 2</option><option value="eq1">= 1</option></select></label>
+                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2"><input v-model="form.turnoverRateOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /><span class="text-sm text-slate-700">换手率 3%-15%</span></label>
+                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2"><input v-model="form.tradingAmountOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /><span class="text-sm text-slate-700">成交额 ≥ 3亿</span></label>
+                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2"><input v-model="form.superLargeNetInflowOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /><span class="text-sm text-slate-700">超大单净流入</span></label>
+                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2"><input v-model="form.superLargeNetInflowRatioOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /><span class="text-sm text-slate-700">超大单净流入 / 成交额 ≥ 5%</span></label>
                     <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2">
                       <input v-model="form.weeklyCloseAboveEma20Ok" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                       <span class="text-sm text-slate-700">周线收盘 &gt; EMA20</span>
@@ -398,19 +358,8 @@ function handleClose() {
                 </div>
 
                 <div class="col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div class="mb-3 text-sm font-semibold text-slate-900">决策与计划</div>
-                  <div class="grid gap-3 md:grid-cols-3">
-                    <label
-                      v-for="option in decisionOptions"
-                      :key="option.value"
-                      class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2"
-                      :class="form.reviewDecision === option.value ? option.value === 'approved' ? 'border-emerald-500 bg-emerald-50' : option.value === 'rejected' ? 'border-red-500 bg-red-50' : 'border-amber-500 bg-amber-50' : ''"
-                    >
-                      <input v-model="form.reviewDecision" type="radio" :value="option.value" class="text-blue-600 focus:ring-blue-500" />
-                      <span class="text-sm font-medium text-slate-800">{{ option.label }}</span>
-                    </label>
-                  </div>
-                  <div class="mt-4 grid gap-4 md:grid-cols-3">
+                  <div class="mb-3 text-sm font-semibold text-slate-900">计划与备注</div>
+                  <div class="grid gap-4 md:grid-cols-3">
                     <label class="text-sm text-slate-700 md:col-span-3">
                       决策理由
                       <textarea v-model="form.decisionReason" rows="3" class="input-field mt-2 resize-none"></textarea>
@@ -521,9 +470,8 @@ function handleClose() {
             </div>
 
             <div class="shrink-0 border-t border-slate-100 bg-white/95 backdrop-blur px-6 py-4">
-              <div class="flex gap-3">
-              <button type="button" @click="handleClose" class="btn-secondary flex-1">取消</button>
-              <button type="submit" :disabled="loading" class="btn-primary flex-1">
+              <div>
+              <button type="submit" :disabled="loading" class="btn-primary w-full">
                 {{ loading ? '保存中...' : '保存修改' }}
               </button>
               </div>

@@ -1,5 +1,6 @@
 import type { Stock, Stats, ReasonStat } from '@/types/api';
 import { isSupabaseConfigured, supabase } from '@/utils/supabase';
+import { evaluateBuyStrategy, getStrategySummary, migrateLegacyStrategy } from '@/utils/buyStrategyEngine';
 
 const STORAGE_KEY = 'stock_investment_records';
 const CLOUD_TABLE = 'stock_records';
@@ -32,9 +33,15 @@ async function getCurrentUser() {
 }
 
 function normalizeLoadedStock(stock: Stock): Stock {
+  const strategy = migrateLegacyStrategy(stock);
+  const strategyOutput = evaluateBuyStrategy(strategy);
   const normalized = {
     ...stock,
     riskRewardRatio: stock.riskRewardRatio || (stock.riskRewardOk ? 'gt2' : undefined),
+    ...strategy,
+    strategyDecision: stock.strategyDecision || strategyOutput.decision,
+    entryTypes: stock.entryTypes || strategyOutput.entryTypes,
+    strategyNote: stock.strategyNote || strategyOutput.note,
   };
   if (stock.status !== 'watching') return normalized;
   return {
@@ -123,6 +130,8 @@ function generateId(): string {
 function normalizeStockForSave(stock: Omit<Stock, 'id' | 'createdAt' | 'updatedAt'>): Omit<Stock, 'id' | 'createdAt' | 'updatedAt'> {
   const reviewDecision = stock.reviewDecision || 'approved';
   const targetPrice = stock.targetPrice == null ? stock.takeProfitPrice : stock.targetPrice;
+  const strategy = migrateLegacyStrategy(stock);
+  const strategyOutput = evaluateBuyStrategy(strategy);
   return {
     ...stock,
     marketTag: stock.marketTag || 'A股',
@@ -138,6 +147,10 @@ function normalizeStockForSave(stock: Omit<Stock, 'id' | 'createdAt' | 'updatedA
     revenueGrowthOk: stock.revenueGrowthOk == null ? Boolean(stock.profitGrowthOk) : Boolean(stock.revenueGrowthOk),
     riskRewardOk: Boolean(stock.riskRewardOk),
     riskRewardRatio: stock.riskRewardRatio || (stock.riskRewardOk ? 'gt2' : undefined),
+    turnoverRateOk: Boolean(stock.turnoverRateOk),
+    tradingAmountOk: Boolean(stock.tradingAmountOk),
+    superLargeNetInflowOk: Boolean(stock.superLargeNetInflowOk),
+    superLargeNetInflowRatioOk: Boolean(stock.superLargeNetInflowRatioOk),
     weeklyCloseAboveEma20Ok: Boolean(stock.weeklyCloseAboveEma20Ok),
     weeklyEma20SlopeOk: Boolean(stock.weeklyEma20SlopeOk),
     forceContinued: Boolean(stock.forceContinued),
@@ -149,6 +162,10 @@ function normalizeStockForSave(stock: Omit<Stock, 'id' | 'createdAt' | 'updatedA
     buyStrategy: stock.buyStrategy || stock.technicalPattern || '强趋势小回调H1',
     technicalPattern: stock.technicalPattern || stock.buyStrategy || '强趋势小回调H1',
     patternRemark: stock.patternRemark || '',
+    ...strategy,
+    strategyDecision: strategyOutput.decision,
+    entryTypes: strategyOutput.entryTypes,
+    strategyNote: strategyOutput.note,
     reviewDecision,
     status: stock.status === 'sold' ? 'sold' : 'holding',
     decisionReason: stock.decisionReason?.trim() || '',
@@ -361,12 +378,7 @@ export async function getStats(): Promise<{ data: Stats }> {
 
   const reasonStats: ReasonStat[] = [];
   const reasonGroups = stocks.reduce((acc, stock) => {
-    const strategyKey = [
-      stock.trendJudgment || '未判断',
-      stock.marketState || '未识别',
-      stock.buyStrategy || stock.technicalPattern || '未标记',
-      stock.patternRemark || '未标形态',
-    ].join(' + ');
+    const strategyKey = getStrategySummary(migrateLegacyStrategy(stock));
     if (!acc[strategyKey]) acc[strategyKey] = [];
     acc[strategyKey].push(stock);
     return acc;

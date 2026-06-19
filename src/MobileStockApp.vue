@@ -7,6 +7,7 @@ import AuthPanel from '@/components/ui/AuthPanel.vue';
 import { useStockStore } from '@/stores/stock';
 import type { BuyStockInput, SellStockInput } from '@/schemas/stock';
 import type { Stock, StockStatus } from '@/types/api';
+import { getStrategySummary, migrateLegacyStrategy } from '@/utils/buyStrategyEngine';
 
 const store = useStockStore();
 
@@ -106,7 +107,7 @@ const strategyAnalysis = computed(() => {
   for (const stock of store.soldStocks) {
     const value = calcReturnValue(stock);
     if (value == null) continue;
-    const key = stock.buyStrategy || stock.technicalPattern || '未标记';
+    const key = getStrategySummary(migrateLegacyStrategy(stock));
     groups.set(key, [...(groups.get(key) || []), value]);
   }
   return [...groups.entries()]
@@ -453,7 +454,7 @@ async function handleLogout() {
           </div>
 
           <div class="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
-            {{ stock.trendJudgment || '未判断' }} · {{ stock.marketState || '未识别' }} · {{ stock.buyStrategy || stock.technicalPattern || '未标记' }} · {{ stock.patternRemark || '未标形态' }}
+            {{ getStrategySummary(migrateLegacyStrategy(stock)) }}
           </div>
 
           <div class="mt-4 flex items-center justify-end gap-2">

@@ -1,3 +1,5 @@
+import type { EntryType, MarketStructure, PriceLocation, RiskState, StrategyDecision, TrendQuality } from '../utils/buyStrategyEngine';
+
 // 股票状态
 export type StockStatus = 'holding' | 'sold' | 'watching';
 export type StockMarketTag = 'A股' | '美股';
@@ -32,6 +34,10 @@ export interface Stock {
   revenueGrowthOk?: boolean;
   riskRewardOk?: boolean;
   riskRewardRatio?: RiskRewardRatio;
+  turnoverRateOk?: boolean;
+  tradingAmountOk?: boolean;
+  superLargeNetInflowOk?: boolean;
+  superLargeNetInflowRatioOk?: boolean;
   weeklyCloseAboveEma20Ok?: boolean;
   weeklyEma20SlopeOk?: boolean;
   forceContinued?: boolean;
@@ -45,6 +51,14 @@ export interface Stock {
   buyStrategy?: string;
   technicalPattern?: TechnicalPattern;
   patternRemark?: string;
+  marketStructure?: MarketStructure;
+  trendQuality?: TrendQuality;
+  priceLocation?: PriceLocation;
+  riskState?: RiskState;
+  strategyDecision?: StrategyDecision;
+  entryTypes?: EntryType[];
+  strategyNote?: string;
+  legacyTrigger?: string;
   reviewDecision?: ReviewDecision;
   decisionReason?: string;
   stopLossPrice?: number;
