@@ -61,6 +61,7 @@ export interface StrategyOutput {
   decision: StrategyDecision;
   riskHint: RiskHint;
   entryType: EntryType;
+  entryOptions: EntryType[];
   note: string;
 }
 
@@ -98,6 +99,19 @@ export const POSITION_PHASE_LABELS: Record<PositionPhase, string> = {
   PULLBACK: '回调中', CONSOLIDATION: '中继整理', ACCELERATION: '高位加速',
   BOUNCE: '反弹中', REVERSAL_TRY: '反转试探',
   LOWER_EDGE: '下沿', MIDDLE: '中部', UPPER_EDGE: '上沿', IN_RANGE_CONSOLIDATION: '区间内整理',
+};
+
+// Phase descriptions shown below the dropdown
+export const PHASE_DESCRIPTIONS: Record<PositionPhase, string> = {
+  PULLBACK: '价格在上涨趋势中暂时回落，HL+HH未被破坏，等待回调结束信号',
+  CONSOLIDATION: '价格上涨后窄幅横盘，K线重叠密集，在等突破方向',
+  ACCELERATION: '连续大阳线，远离EMA21，风险收益比变差，只做持仓管理',
+  BOUNCE: '价格在下降趋势中暂时反弹，不改变LH+LL结构',
+  REVERSAL_TRY: '价格突破关键压力位或形成底部结构，可能趋势扭转',
+  LOWER_EDGE: '价格靠近区间下沿支撑位，等待确认信号',
+  MIDDLE: '价格在区间中部，不上不下没有交易优势',
+  UPPER_EDGE: '价格靠近区间上沿压力位，不追，等有效突破',
+  IN_RANGE_CONSOLIDATION: '价格在区间内部形成中继形态，等方向突破',
 };
 
 // Concrete Pattern labels (depends on position phase)
@@ -164,9 +178,9 @@ export const ENTRY_TYPE_LABELS: Record<EntryType, string> = {
 // ==============================
 // Engine
 // ==============================
-const out = (decision: StrategyDecision, entryType: EntryType, riskHint: RiskHint, note: string): StrategyOutput => ({ decision, entryType, riskHint, note });
-const noBuy = (note: string) => out('DO_NOT_BUY', 'NONE', 'none', note);
-const watch = (entryType: EntryType, riskHint: RiskHint, note: string) => out('WATCH', entryType, riskHint, note);
+const out = (decision: StrategyDecision, entryType: EntryType, riskHint: RiskHint, note: string, entryOptions?: EntryType[]): StrategyOutput => ({ decision, entryType, riskHint, entryOptions: entryOptions || [entryType], note });
+const noBuy = (note: string) => out('DO_NOT_BUY', 'NONE', 'none', note, ['NONE']);
+const watch = (entryType: EntryType, riskHint: RiskHint, note: string, entryOptions?: EntryType[]) => out('WATCH', entryType, riskHint, note, entryOptions || [entryType]);
 
 export function evaluateBuyStrategy(input: StrategyInput): StrategyOutput {
   const { marketBackground: bg, positionPhase: pos, concretePattern: pat } = input;
@@ -206,15 +220,18 @@ export function evaluateBuyStrategy(input: StrategyInput): StrategyOutput {
     if (pos === 'CONSOLIDATION') {
       if (pat === 'HORIZONTAL_PLATFORM') {
         return watch('PLATFORM_BREAKOUT', 'none',
-          '水平平台整理。不提前入场，等平台突破或突破回踩确认。');
+          '水平平台整理。不提前入场，等平台突破或突破回踩确认。',
+          ['PLATFORM_BREAKOUT', 'BREAKOUT_PULLBACK']);
       }
       if (pat === 'TRIANGLE_CONTRACTION') {
         return watch('TRIANGLE_BREAKOUT', 'none',
-          '三角收敛末端，等方向突破或突破回踩确认。不提前赌方向。');
+          '三角收敛末端，等方向突破或突破回踩确认。不提前赌方向。',
+          ['TRIANGLE_BREAKOUT', 'BREAKOUT_PULLBACK']);
       }
       if (pat === 'CUP_HANDLE') {
         return watch('CUP_HANDLE_BREAKOUT', 'none',
-          '杯柄整理形态。等杯柄突破或突破回踩确认。');
+          '杯柄整理形态。等杯柄突破或突破回踩确认。',
+          ['CUP_HANDLE_BREAKOUT', 'BREAKOUT_PULLBACK']);
       }
       if (pat === 'WEDGE') {
         return watch('NONE', 'divergence',
@@ -234,12 +251,14 @@ export function evaluateBuyStrategy(input: StrategyInput): StrategyOutput {
       if (pat === 'REVERSAL_BREAKOUT_RETEST') {
         return watch('REVERSAL_BREAKOUT_PULLBACK', 'none',
           '下降背景唯一例外：已出现反转突破（突破关键压力位），等回踩确认不破后再评估。'
-          + '确认标准：回踩不破突破 K 线低点或 EMA21。');
+          + '确认标准：回踩不破突破 K 线低点或 EMA21。',
+          ['REVERSAL_BREAKOUT_PULLBACK']);
       }
       if (pat === 'DOUBLE_BOTTOM_CONFIRM') {
         return watch('DOUBLE_BOTTOM_CONFIRMATION', 'none',
           '双底确认是潜在趋势反转信号，但下降背景的胜率低于上涨背景。'
-          + '等右侧确认（突破颈线或回踩不破）后再评估。');
+          + '等右侧确认（突破颈线或回踩不破）后再评估。',
+          ['DOUBLE_BOTTOM_CONFIRMATION', 'BREAKOUT_PULLBACK']);
       }
       return noBuy('反转试探形态不合法。');
     }
@@ -254,11 +273,13 @@ export function evaluateBuyStrategy(input: StrategyInput): StrategyOutput {
     if (pos === 'LOWER_EDGE') {
       if (pat === 'DOUBLE_BOTTOM') {
         return watch('DOUBLE_BOTTOM_CONFIRMATION', 'none',
-          '区间底部出现双底。等右侧确认后再入场，不要提前赌双底。');
+          '区间底部出现双底。等右侧确认后再入场，不要提前赌双底。',
+          ['DOUBLE_BOTTOM_CONFIRMATION', 'FAILED_BREAKDOWN_RECLAIM']);
       }
       if (pat === 'FAILED_BREAKDOWN_RECLAIM') {
         return watch('FAILED_BREAKDOWN_RECLAIM', 'none',
-          '假跌破区间下沿后快速收回，这是多头陷阱失效的信号。等收回确认。');
+          '假跌破区间下沿后快速收回，这是多头陷阱失效的信号。等收回确认。',
+          ['FAILED_BREAKDOWN_RECLAIM', 'DOUBLE_BOTTOM_CONFIRMATION']);
       }
       if (pat === 'BULL_ENGULF_LOWER_EDGE') {
         return out('BUY', 'LOWER_EDGE_BULL_ENGULF', 'none',
@@ -270,7 +291,8 @@ export function evaluateBuyStrategy(input: StrategyInput): StrategyOutput {
     if (pos === 'UPPER_EDGE') {
       if (pat === 'VALID_BREAKOUT') {
         return watch('EFFECTIVE_BREAKOUT', 'none',
-          '区间上方有效突破。不追，等突破后回踩确认不破再介入。');
+          '区间上方有效突破。不追，等突破后回踩确认不破再介入。',
+          ['EFFECTIVE_BREAKOUT', 'BREAKOUT_PULLBACK']);
       }
       if (pat === 'BREAKOUT_PULLBACK') {
         return out('BUY', 'BREAKOUT_PULLBACK', 'none',

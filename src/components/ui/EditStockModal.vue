@@ -43,6 +43,7 @@ const form = ref<EditableStockInput>({
   marketBackground: 'BULL_TREND',
   positionPhase: 'PULLBACK',
   concretePattern: 'SHALLOW_PULLBACK',
+  entryType: '',
   reviewDecision: 'pending',
   decisionReason: '',
   stopLossPrice: 0,
@@ -92,6 +93,7 @@ watch(() => props.open, (isOpen) => {
       marketBackground: props.stock.marketBackground || migrated.marketBackground,
       positionPhase: props.stock.positionPhase || migrated.positionPhase,
       concretePattern: props.stock.concretePattern || migrated.concretePattern,
+      entryType: props.stock.entryType || '',
       reviewDecision: props.stock.reviewDecision || (props.stock.status === 'holding' || props.stock.status === 'sold' ? 'approved' : 'pending'),
       decisionReason: props.stock.decisionReason || '',
       stopLossPrice: props.stock.stopLossPrice || 0,
@@ -340,6 +342,7 @@ function handleClose() {
                     v-model:market-background="form.marketBackground"
                     v-model:position-phase="form.positionPhase"
                     v-model:concrete-pattern="form.concretePattern"
+                    v-model:entry-type="form.entryType"
                   />
                 </div>
 

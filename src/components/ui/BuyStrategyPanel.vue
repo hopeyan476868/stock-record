@@ -5,6 +5,7 @@ import {
   MARKET_BACKGROUND_OPTIONS, DECISION_LABELS, ENTRY_TYPE_LABELS, RISK_HINT_LABELS,
   getPositionPhases, getConcretePatterns, evaluateBuyStrategy,
   MARKET_BACKGROUND_LABELS, POSITION_PHASE_LABELS, CONCRETE_PATTERN_LABELS,
+  PHASE_DESCRIPTIONS,
   type MarketBackground, type PositionPhase, type ConcretePattern,
 } from '@/utils/buyStrategyEngine';
 
@@ -12,12 +13,14 @@ const props = defineProps<{
   marketBackground?: MarketBackground;
   positionPhase?: PositionPhase;
   concretePattern?: ConcretePattern;
+  entryType?: string;
 }>();
 
 const emit = defineEmits<{
   'update:marketBackground': [value: MarketBackground];
   'update:positionPhase': [value: PositionPhase];
   'update:concretePattern': [value: ConcretePattern];
+  'update:entryType': [value: string];
 }>();
 
 const bg = computed({
@@ -32,6 +35,10 @@ const pattern = computed({
   get: () => props.concretePattern || 'SHALLOW_PULLBACK',
   set: (v: ConcretePattern) => emit('update:concretePattern', v),
 });
+const entry = computed({
+  get: () => props.entryType || '',
+  set: (v: string) => emit('update:entryType', v),
+});
 
 const phaseOptions = computed(() => getPositionPhases(bg.value));
 const patternOptions = computed(() => getConcretePatterns(phase.value));
@@ -40,6 +47,9 @@ const strategy = computed(() => evaluateBuyStrategy({
   positionPhase: phase.value,
   concretePattern: pattern.value,
 }));
+
+const phaseDesc = computed(() => PHASE_DESCRIPTIONS[phase.value] || '');
+const entryOptions = computed(() => strategy.value.entryOptions || []);
 
 const decisionTone = computed(() => ({
   BUY: 'border-emerald-300 bg-emerald-50 text-emerald-800',
@@ -55,13 +65,13 @@ const riskTone = computed(() => ({
   invalidated: 'bg-red-100 text-red-700',
 }[strategy.value.riskHint]));
 
-// Reset phase when bg changes if current phase invalid
+// Reset phase when bg changes
 watch(bg, () => {
   const valid = phaseOptions.value.some(o => o.value === phase.value);
   if (!valid) phase.value = phaseOptions.value[0]?.value || 'PULLBACK';
 });
 
-// Reset pattern when phase changes if current pattern invalid
+// Reset pattern when phase changes
 watch(phase, () => {
   const opts = patternOptions.value;
   if (opts.length === 0) {
@@ -71,9 +81,14 @@ watch(phase, () => {
   }
 });
 
-// When pattern changes, auto-select entry type from strategy
-watch(pattern, () => {
-  // Entry type is already derived by strategy — no user action needed
+// Auto-select entry when strategy changes
+watch(strategy, () => {
+  const opts = entryOptions.value;
+  if (opts.length && opts[0] !== 'NONE') {
+    entry.value = opts[0];
+  } else {
+    entry.value = '';
+  }
 }, { immediate: true });
 </script>
 
@@ -82,14 +97,14 @@ watch(pattern, () => {
     <div class="mb-4 flex items-center justify-between">
       <div>
         <h4 class="text-sm font-semibold text-slate-900">交易策略（价格行为）</h4>
-        <p class="mt-1 text-xs text-slate-500">市场背景 → 形态位置 → 具体形态，三级联动</p>
+        <p class="mt-1 text-xs text-slate-500">市场背景 → 形态位置 → 具体形态 → 入场位置</p>
       </div>
       <span v-if="strategy.riskHint !== 'none'" class="rounded-full px-3 py-1 text-xs font-bold" :class="riskTone">
         {{ RISK_HINT_LABELS[strategy.riskHint] }}
       </span>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-3">
+    <div class="grid gap-4 sm:grid-cols-4">
       <!-- Level 1: 背景 -->
       <div>
         <div class="flex items-center gap-1.5 text-sm text-slate-700">
@@ -119,6 +134,7 @@ watch(pattern, () => {
         <select v-model="phase" aria-label="形态位置" class="input-field mt-2">
           <option v-for="item in phaseOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
         </select>
+        <p class="mt-1.5 text-xs leading-4 text-slate-500">{{ phaseDesc }}</p>
       </div>
 
       <!-- Level 3: 具体形态 -->
@@ -134,6 +150,22 @@ watch(pattern, () => {
           <option v-for="item in patternOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
         </select>
       </div>
+
+      <!-- Level 4: 入场位置 -->
+      <div>
+        <div class="flex items-center gap-1.5 text-sm text-slate-700">
+          ④ 入场位置
+          <StrategyInfoPopover title="入场位置：你计划以什么信号入场">
+            <p>系统根据前三项推导出可选入场方式。</p>
+            <p class="mt-2">如果系统建议了多个选项，你可以选择最适合当前行情的那个。</p>
+            <p class="mt-2">如果策略是"不买"或"放弃"，此下拉将不可用。</p>
+          </StrategyInfoPopover>
+        </div>
+        <select v-model="entry" aria-label="入场位置" class="input-field mt-2" :disabled="entryOptions.length === 0 || entryOptions[0] === 'NONE'">
+          <option v-if="!entryOptions.length || entryOptions[0] === 'NONE'" value="">无可用入场位置</option>
+          <option v-for="item in entryOptions" :key="item" :value="item">{{ ENTRY_TYPE_LABELS[item] }}</option>
+        </select>
+      </div>
     </div>
 
     <!-- Result -->
@@ -141,8 +173,8 @@ watch(pattern, () => {
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
           <strong class="text-sm">最终决策：{{ DECISION_LABELS[strategy.decision] }}</strong>
-          <span v-if="strategy.decision !== 'PASS' && strategy.entryType !== 'NONE'" class="text-xs">
-            入场方式：{{ ENTRY_TYPE_LABELS[strategy.entryType] }}
+          <span v-if="entry" class="text-xs rounded-full bg-white/60 px-2 py-0.5">
+            入场：{{ ENTRY_TYPE_LABELS[entry as keyof typeof ENTRY_TYPE_LABELS] || entry }}
           </span>
         </div>
         <span class="text-xs font-semibold">

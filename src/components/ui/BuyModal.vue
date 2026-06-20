@@ -53,6 +53,7 @@ const form = ref({
   marketBackground: 'BULL_TREND' as MarketBackground,
   positionPhase: 'PULLBACK' as PositionPhase,
   concretePattern: 'SHALLOW_PULLBACK' as ConcretePattern,
+  entryType: '',
   // 交易计划
   stopLossPrice: 0,
   targetPrice: 0,
@@ -88,6 +89,7 @@ watch(() => props.open, (isOpen) => {
       marketBackground: 'BULL_TREND',
       positionPhase: 'PULLBACK',
       concretePattern: 'SHALLOW_PULLBACK',
+      entryType: '',
       stopLossPrice: 0,
       targetPrice: 0,
       decisionReason: '',
@@ -349,6 +351,7 @@ function handleClose() {
                 v-model:market-background="form.marketBackground"
                 v-model:position-phase="form.positionPhase"
                 v-model:concrete-pattern="form.concretePattern"
+                v-model:entry-type="form.entryType"
               />
 
               <!-- 计划与备注 -->
