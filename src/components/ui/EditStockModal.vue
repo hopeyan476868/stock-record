@@ -32,35 +32,17 @@ const form = ref<EditableStockInput>({
   buyReason: '',
   buyPsychology: '',
   emotionTag: '理性',
-  roicOk: false,
-  grossMarginOk: false,
-  operatingCashFlowPositiveOk: false,
-  assetLiabilityRatioOk: false,
   parentNetProfitGrowthOk: false,
-  profitGrowthOk: false,
-  revenueGrowthOk: false,
+  grossMarginOk: false,
+  netProfitMarginOk: false,
+  assetLiabilityRatioOk: false,
   riskRewardOk: false,
-  riskRewardRatio: 'gt2',
-  turnoverRateOk: false,
-  tradingAmountOk: false,
-  superLargeNetInflowOk: false,
-  superLargeNetInflowRatioOk: false,
+  turnoverRate: undefined,
+  turnoverDirection: undefined,
   weeklyCloseAboveEma20Ok: false,
-  weeklyEma20SlopeOk: false,
-  forceContinued: false,
-  priceAboveMa50Ok: false,
-  trendJudgment: '上涨趋势',
-  marketState: '强上升',
-  buyStrategy: '强趋势小回调H1',
-  technicalPattern: '强趋势小回调H1',
-  patternRemark: '平台整理',
-  marketStructure: 'UP',
-  trendQuality: 'STRONG',
-  priceLocation: 'TREND_PULLBACK',
-  marketBackground: 'STRONG_UP',
-  currentStructure: 'SHALLOW_PULLBACK',
-  riskState: 'NONE',
-  entryType: 'H1',
+  marketBackground: 'BULL_TREND',
+  positionPhase: 'PULLBACK',
+  concretePattern: 'SHALLOW_PULLBACK',
   reviewDecision: 'pending',
   decisionReason: '',
   stopLossPrice: 0,
@@ -87,7 +69,7 @@ const errors = ref<Record<string, string>>({});
 
 watch(() => props.open, (isOpen) => {
   if (isOpen && props.stock) {
-    const migratedStrategy = migrateLegacyStrategy(props.stock);
+    const migrated = migrateLegacyStrategy(props.stock);
     form.value = {
       marketTag: props.stock.marketTag || 'A股',
       name: props.stock.name,
@@ -99,31 +81,17 @@ watch(() => props.open, (isOpen) => {
       buyReason: props.stock.buyReason,
       buyPsychology: props.stock.buyPsychology || '',
       emotionTag: props.stock.emotionTag || '理性',
-      roicOk: Boolean(props.stock.roicOk),
+      parentNetProfitGrowthOk: Boolean(props.stock.parentNetProfitGrowthOk),
       grossMarginOk: Boolean(props.stock.grossMarginOk),
-      operatingCashFlowPositiveOk: Boolean(props.stock.operatingCashFlowPositiveOk),
+      netProfitMarginOk: Boolean(props.stock.netProfitMarginOk),
       assetLiabilityRatioOk: Boolean(props.stock.assetLiabilityRatioOk),
-      parentNetProfitGrowthOk: props.stock.parentNetProfitGrowthOk == null ? Boolean(props.stock.profitGrowthOk) : Boolean(props.stock.parentNetProfitGrowthOk),
-      profitGrowthOk: Boolean(props.stock.profitGrowthOk),
-      revenueGrowthOk: props.stock.revenueGrowthOk == null ? Boolean(props.stock.profitGrowthOk) : Boolean(props.stock.revenueGrowthOk),
       riskRewardOk: Boolean(props.stock.riskRewardOk),
-      riskRewardRatio: props.stock.riskRewardRatio || 'gt2',
-      turnoverRateOk: Boolean(props.stock.turnoverRateOk),
-      tradingAmountOk: Boolean(props.stock.tradingAmountOk),
-      superLargeNetInflowOk: Boolean(props.stock.superLargeNetInflowOk),
-      superLargeNetInflowRatioOk: Boolean(props.stock.superLargeNetInflowRatioOk),
+      turnoverRate: props.stock.turnoverRate,
+      turnoverDirection: props.stock.turnoverDirection,
       weeklyCloseAboveEma20Ok: Boolean(props.stock.weeklyCloseAboveEma20Ok),
-      weeklyEma20SlopeOk: Boolean(props.stock.weeklyEma20SlopeOk),
-      forceContinued: Boolean(props.stock.forceContinued),
-      netMarginOk: Boolean(props.stock.netMarginOk),
-      debtRatioOk: Boolean(props.stock.debtRatioOk),
-      priceAboveMa50Ok: Boolean(props.stock.priceAboveMa50Ok),
-      trendJudgment: props.stock.trendJudgment || '上涨趋势',
-      marketState: props.stock.marketState || '强上升',
-      buyStrategy: props.stock.buyStrategy || props.stock.technicalPattern || '强趋势小回调H1',
-      technicalPattern: props.stock.technicalPattern || props.stock.buyStrategy || '强趋势小回调H1',
-      patternRemark: props.stock.patternRemark || '平台整理',
-      ...migratedStrategy,
+      marketBackground: props.stock.marketBackground || migrated.marketBackground,
+      positionPhase: props.stock.positionPhase || migrated.positionPhase,
+      concretePattern: props.stock.concretePattern || migrated.concretePattern,
       reviewDecision: props.stock.reviewDecision || (props.stock.status === 'holding' || props.stock.status === 'sold' ? 'approved' : 'pending'),
       decisionReason: props.stock.decisionReason || '',
       stopLossPrice: props.stock.stopLossPrice || 0,
@@ -157,7 +125,11 @@ const expectedReturn = computed(() => {
 
 const emotionOptions: EmotionTag[] = ['理性', '犹豫', 'FOMO'];
 const marketTagOptions: StockMarketTag[] = ['A股', '美股'];
-const strategyInput = computed(() => ({ marketBackground: form.value.marketBackground || 'STRONG_UP', currentStructure: form.value.currentStructure || 'SHALLOW_PULLBACK', riskState: form.value.riskState || 'NONE', entryType: form.value.entryType || 'H1' }));
+const strategyInput = computed(() => ({
+  marketBackground: form.value.marketBackground || 'BULL_TREND',
+  positionPhase: form.value.positionPhase || 'PULLBACK',
+  concretePattern: form.value.concretePattern || 'SHALLOW_PULLBACK',
+}));
 const strategyOutput = computed(() => evaluateBuyStrategy(strategyInput.value));
 const strategySummary = computed(() => getStrategySummary(strategyInput.value, strategyOutput.value));
 
@@ -175,7 +147,6 @@ const priceMatch = computed<{ label: string; check: SellExecutionCheck; tone: st
 
 function validate() {
   errors.value = {};
-
   if (!form.value.name.trim()) errors.value.name = '股票名称不能为空';
   if (!(form.value.buyPrice > 0)) errors.value.buyPrice = '买入价格必须大于 0';
   if (!form.value.buyDate) errors.value.buyDate = '买入日期不能为空';
@@ -194,7 +165,6 @@ function validate() {
       }
     }
   }
-
   return Object.keys(errors.value).length === 0;
 }
 
@@ -207,14 +177,10 @@ function handleSubmit() {
     buyReason: strategySummary.value,
     decisionReason: form.value.decisionReason?.trim() || '',
     trackingAnalysis: '',
-    technicalPattern: undefined,
-    patternRemark: undefined,
     strategyDecision: strategyOutput.value.decision,
-    entryType: strategyInput.value.entryType,
-    entryOptions: strategyOutput.value.entryOptions,
+    entryType: strategyOutput.value.entryType,
     strategyNote: strategyOutput.value.note,
     reviewDecision: strategyOutput.value.decision === 'BUY' ? 'approved' : 'rejected',
-    riskRewardOk: Boolean(form.value.riskRewardOk && form.value.riskRewardRatio),
     triggerPrice: Number(form.value.triggerPrice || 0),
     targetPrice: Number(form.value.targetPrice || 0),
     takeProfitPrice: Number(form.value.targetPrice || 0),
@@ -322,47 +288,59 @@ function handleClose() {
                   <p v-if="errors.buyDate" class="mt-1.5 text-xs text-red-600">{{ errors.buyDate }}</p>
                 </div>
 
-                <div class="col-span-2">
-                  <BuyStrategyPanel v-model:market-background="form.marketBackground" v-model:current-structure="form.currentStructure" v-model:risk-state="form.riskState" v-model:entry-type="form.entryType" />
-                </div>
-
+                <!-- 核查项 -->
                 <div class="col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div class="mb-3 text-sm font-semibold text-slate-900">核查</div>
                   <div class="grid gap-3 md:grid-cols-2">
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2">
-                      <input v-model="form.grossMarginOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span class="text-sm text-slate-700">毛利率 &gt; 25%</span>
-                    </label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2">
-                      <input v-model="form.operatingCashFlowPositiveOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span class="text-sm text-slate-700">经营现金流 &gt; 0</span>
-                    </label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2">
-                      <input v-model="form.assetLiabilityRatioOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span class="text-sm text-slate-700">资产负债率 &lt; 60%</span>
-                    </label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2">
+                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2 cursor-pointer">
                       <input v-model="form.parentNetProfitGrowthOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span class="text-sm text-slate-700">归母净利润同比 &gt; 20%</span>
+                      <span class="text-sm text-slate-700">净利润同比 ≥ 20%</span>
                     </label>
-                    <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-2">
+                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2 cursor-pointer">
+                      <input v-model="form.grossMarginOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span class="text-sm text-slate-700">毛利率 ≥ 30%</span>
+                    </label>
+                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2 cursor-pointer">
+                      <input v-model="form.netProfitMarginOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span class="text-sm text-slate-700">净利率 > 5%</span>
+                    </label>
+                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2 cursor-pointer">
+                      <input v-model="form.assetLiabilityRatioOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span class="text-sm text-slate-700">资产负债率 ≤ 60%</span>
+                    </label>
+                    <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-2 cursor-pointer">
                       <input v-model="form.riskRewardOk" type="checkbox" class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span class="whitespace-nowrap text-sm text-slate-700">盈亏比</span>
-                      <select v-model="form.riskRewardRatio" aria-label="盈亏比选项" class="h-9 min-w-24 flex-1 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"><option value="eq1">= 1</option><option value="gt2">≥ 2</option></select>
+                      <span class="text-sm font-semibold text-slate-700">盈亏比 ≥ 2</span>
                     </label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2"><input v-model="form.turnoverRateOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /><span class="text-sm text-slate-700">换手率 3%-15%</span></label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2"><input v-model="form.tradingAmountOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /><span class="text-sm text-slate-700">成交额 ≥ 3亿</span></label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2"><input v-model="form.superLargeNetInflowOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /><span class="text-sm text-slate-700">超大单净流入</span></label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2"><input v-model="form.superLargeNetInflowRatioOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /><span class="text-sm text-slate-700">超大单净流入 / 成交额 ≥ 5%</span></label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2">
+                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2 cursor-pointer">
                       <input v-model="form.weeklyCloseAboveEma20Ok" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span class="text-sm text-slate-700">周线收盘 &gt; EMA20</span>
-                    </label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2">
-                      <input v-model="form.weeklyEma20SlopeOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span class="text-sm text-slate-700">周线EMA20斜率 &gt; 0</span>
+                      <span class="text-sm text-slate-700">周线收盘 > EMA20</span>
                     </label>
                   </div>
+                  <!-- 换手率 -->
+                  <div class="mt-3 rounded-xl bg-white px-3 py-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="text-sm text-slate-700">换手率</span>
+                      <input v-model.number="form.turnoverRate" type="number" step="0.1" min="0" placeholder="%" class="input-field w-24 number-font" />
+                      <span class="text-xs text-slate-400">%</span>
+                      <template v-if="form.turnoverRate != null && form.turnoverRate > 15">
+                        <select v-model="form.turnoverDirection" aria-label="资金方向" class="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm">
+                          <option value="">资金方向...</option>
+                          <option value="net_inflow">净流入</option>
+                          <option value="net_outflow">净流出</option>
+                        </select>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 策略 -->
+                <div class="col-span-2">
+                  <BuyStrategyPanel
+                    v-model:market-background="form.marketBackground"
+                    v-model:position-phase="form.positionPhase"
+                    v-model:concrete-pattern="form.concretePattern"
+                  />
                 </div>
 
                 <div class="col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -386,14 +364,14 @@ function handleClose() {
                     </label>
                   </div>
                 </div>
-
               </div>
 
+              <!-- 卖出信息 -->
               <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
                 <div class="flex items-center justify-between">
                   <div>
                     <div class="text-sm font-semibold text-slate-900">卖出信息</div>
-                    <div class="text-xs text-slate-500">只有状态切到“卖出”时，这部分才会生效。</div>
+                    <div class="text-xs text-slate-500">只有状态切到"卖出"时，这部分才会生效。</div>
                   </div>
                   <span class="badge" :class="isSold ? 'badge-success' : 'badge-muted'">
                     {{ isSold ? '已启用' : '未启用' }}
@@ -411,15 +389,7 @@ function handleClose() {
                   </div>
                   <div>
                     <label class="block text-sm font-semibold text-slate-700 mb-2">卖出数量</label>
-                    <input
-                      v-model.number="form.sellQuantity"
-                      type="number"
-                      step="1"
-                      min="1"
-                      :max="form.buyQuantity || undefined"
-                      class="input-field number-font"
-                      :class="{ 'border-red-400 bg-red-50': errors.sellQuantity }"
-                    />
+                    <input v-model.number="form.sellQuantity" type="number" step="1" min="1" :max="form.buyQuantity || undefined" class="input-field number-font" :class="{ 'border-red-400 bg-red-50': errors.sellQuantity }" />
                     <p v-if="errors.sellQuantity" class="mt-1.5 text-xs text-red-600">{{ errors.sellQuantity }}</p>
                   </div>
                   <div>
@@ -472,17 +442,14 @@ function handleClose() {
                       </div>
                     </div>
                   </div>
-
                 </div>
               </div>
             </div>
 
             <div class="shrink-0 border-t border-slate-100 bg-white/95 backdrop-blur px-6 py-4">
-              <div>
               <button type="submit" :disabled="loading" class="btn-primary w-full">
                 {{ loading ? '保存中...' : '保存修改' }}
               </button>
-              </div>
             </div>
           </form>
         </div>
@@ -496,12 +463,10 @@ function handleClose() {
 .modal-leave-active {
   transition: all 0.2s ease;
 }
-
 .modal-enter-from,
 .modal-leave-to {
   opacity: 0;
 }
-
 .modal-enter-from > div,
 .modal-leave-to > div {
   transform: scale(0.95) translateY(10px);

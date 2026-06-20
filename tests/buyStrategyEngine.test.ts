@@ -1,72 +1,66 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CURRENT_STRUCTURE_OPTIONS, evaluateBuyStrategy, type StrategyInput } from '../src/utils/buyStrategyEngine.ts';
+import { evaluateBuyStrategy, getConcretePatterns, getPositionPhases, type StrategyInput } from '../src/utils/buyStrategyEngine.ts';
 
-const base: StrategyInput = { marketBackground: 'STRONG_UP', currentStructure: 'SHALLOW_PULLBACK', riskState: 'NONE', entryType: 'H1' };
+const base: StrategyInput = { marketBackground: 'BULL_TREND', positionPhase: 'PULLBACK', concretePattern: 'SHALLOW_PULLBACK' };
 const evaluate = (changes: Partial<StrategyInput>) => evaluateBuyStrategy({ ...base, ...changes });
 
-test('强势上升浅回调无风险可买 H1', () => {
-  assert.deepEqual(evaluate({}), { decision: 'BUY', entryOptions: ['H1'], note: '强势上升浅回调，H1 可用。' });
-});
-
-test('强势上升浅回调过热降级为 H2', () => {
-  const result = evaluate({ riskState: 'OVERHEATED' });
-  assert.equal(result.decision, 'WATCH');
-  assert.deepEqual(result.entryOptions, ['H2']);
-});
-
-test('强势上升 EMA21 回踩分歧只观察 H2', () => {
-  const result = evaluate({ currentStructure: 'EMA21_PULLBACK', riskState: 'DIVERGENCE' });
-  assert.equal(result.decision, 'WATCH');
-  assert.deepEqual(result.entryOptions, ['H2']);
-});
-
-test('水平平台无风险等突破或突破回踩', () => {
-  assert.deepEqual(evaluate({ currentStructure: 'HORIZONTAL_PLATFORM' }).entryOptions, ['PLATFORM_BREAKOUT', 'BREAKOUT_PULLBACK']);
-});
-
-test('普通上升所有有效组合都不提供 H1', () => {
-  for (const structure of CURRENT_STRUCTURE_OPTIONS.NORMAL_UP) {
-    for (const riskState of ['NONE', 'OVERHEATED', 'DIVERGENCE', 'INVALIDATED'] as const) {
-      assert.equal(evaluate({ marketBackground: 'NORMAL_UP', currentStructure: structure.value, riskState }).entryOptions.includes('H1'), false);
-    }
-  }
-});
-
-test('普通上升 EMA21 回踩无风险可买 H2', () => {
-  const result = evaluate({ marketBackground: 'NORMAL_UP', currentStructure: 'EMA21_PULLBACK' });
+test('上涨趋势浅回调可买 H1', () => {
+  const result = evaluate({});
   assert.equal(result.decision, 'BUY');
-  assert.deepEqual(result.entryOptions, ['H2']);
+  assert.equal(result.entryType, 'H1');
+  assert.equal(result.riskHint, 'none');
 });
 
-test('区间底部只等双底确认或假跌破收回', () => {
-  const result = evaluate({ marketBackground: 'RANGE', currentStructure: 'RANGE_BOTTOM' });
+test('EMA21 回踩只等 H2', () => {
+  const result = evaluate({ concretePattern: 'EMA21_TOUCH' });
+  assert.equal(result.decision, 'BUY');
+  assert.equal(result.entryType, 'H2');
+});
+
+test('高位加速不新开仓', () => {
+  const result = evaluate({ positionPhase: 'ACCELERATION', concretePattern: 'NONE' });
   assert.equal(result.decision, 'WATCH');
-  assert.deepEqual(result.entryOptions, ['DOUBLE_BOTTOM_CONFIRMATION', 'FAILED_BREAKDOWN_RECLAIM']);
+  assert.equal(result.entryType, 'NONE');
+  assert.equal(result.riskHint, 'overheating');
 });
 
-test('区间中部任何常规风险都不买', () => {
-  for (const riskState of ['NONE', 'OVERHEATED', 'DIVERGENCE'] as const) assert.equal(evaluate({ marketBackground: 'RANGE', currentStructure: 'RANGE_MIDDLE', riskState }).decision, 'DO_NOT_BUY');
+test('楼形整理标记分歧', () => {
+  const result = evaluate({ positionPhase: 'CONSOLIDATION', concretePattern: 'WEDGE' });
+  assert.equal(result.decision, 'WATCH');
+  assert.equal(result.riskHint, 'divergence');
 });
 
-test('区间顶部无风险只等有效突破或回踩', () => {
-  assert.deepEqual(evaluate({ marketBackground: 'RANGE', currentStructure: 'RANGE_TOP' }).entryOptions, ['EFFECTIVE_BREAKOUT', 'BREAKOUT_PULLBACK']);
+test('下降趋势反弹不买', () => {
+  const result = evaluate({ marketBackground: 'BEAR_TREND', positionPhase: 'BOUNCE', concretePattern: 'BOUNCE_TO_RESISTANCE' });
+  assert.equal(result.decision, 'DO_NOT_BUY');
+  assert.equal(result.entryType, 'NONE');
 });
 
-test('买点失效在所有可交易背景中都不买', () => {
-  for (const marketBackground of ['STRONG_UP', 'NORMAL_UP', 'RANGE', 'DOWN'] as const) {
-    const currentStructure = CURRENT_STRUCTURE_OPTIONS[marketBackground][0].value;
-    assert.equal(evaluate({ marketBackground, currentStructure, riskState: 'INVALIDATED' }).decision, 'DO_NOT_BUY');
-  }
+test('下降趋势只保留反转突破回踩例外', () => {
+  const result = evaluate({ marketBackground: 'BEAR_TREND', positionPhase: 'REVERSAL_TRY', concretePattern: 'REVERSAL_BREAKOUT_RETEST' });
+  assert.equal(result.decision, 'WATCH');
+  assert.equal(result.entryType, 'REVERSAL_BREAKOUT_PULLBACK');
 });
 
-test('下降背景只保留反转突破后回踩例外', () => {
-  const exception = evaluate({ marketBackground: 'DOWN', currentStructure: 'REVERSAL_BREAKOUT_PULLBACK' });
-  assert.equal(exception.decision, 'WATCH');
-  assert.deepEqual(exception.entryOptions, ['REVERSAL_BREAKOUT_PULLBACK']);
-  assert.equal(evaluate({ marketBackground: 'DOWN', currentStructure: 'NO_VALID_STRUCTURE' }).decision, 'PASS');
+test('区间中部不买', () => {
+  const result = evaluate({ marketBackground: 'TRADING_RANGE', positionPhase: 'MIDDLE', concretePattern: 'NONE' });
+  assert.equal(result.decision, 'DO_NOT_BUY');
 });
 
-test('结构不清晰直接放弃', () => {
-  assert.equal(evaluate({ marketBackground: 'UNCLEAR', currentStructure: 'NO_VALID_STRUCTURE' }).decision, 'PASS');
+test('区间下沿阳线反包可买', () => {
+  const result = evaluate({ marketBackground: 'TRADING_RANGE', positionPhase: 'LOWER_EDGE', concretePattern: 'BULL_ENGULF_LOWER_EDGE' });
+  assert.equal(result.decision, 'BUY');
+  assert.equal(result.entryType, 'LOWER_EDGE_BULL_ENGULF');
+});
+
+test('区间上沿突破回踩可买', () => {
+  const result = evaluate({ marketBackground: 'TRADING_RANGE', positionPhase: 'UPPER_EDGE', concretePattern: 'BREAKOUT_PULLBACK' });
+  assert.equal(result.decision, 'BUY');
+  assert.equal(result.entryType, 'BREAKOUT_PULLBACK');
+});
+
+test('背景与阶段选项正确联动', () => {
+  assert.deepEqual(getPositionPhases('BEAR_TREND').map((item) => item.value), ['BOUNCE', 'REVERSAL_TRY']);
+  assert.deepEqual(getConcretePatterns('LOWER_EDGE').map((item) => item.value), ['DOUBLE_BOTTOM', 'FAILED_BREAKDOWN_RECLAIM', 'BULL_ENGULF_LOWER_EDGE']);
 });

@@ -9,51 +9,47 @@ export const BuyStockSchema = z.object({
   triggerPrice: z.number().min(0).optional(),
   buyPrice: z.number().positive('买入价格必须为正数'),
   buyDate: z.string().min(1, '买入日期不能为空'),
-  buyReason: z.string().min(1, '策略备注不能为空'),
+  buyReason: z.string().min(1, '买入策略不能为空'),
   buyPsychology: z.string().optional(),
   emotionTag: z.enum(['FOMO', '理性', '犹豫']).optional(),
-  roicOk: z.boolean().optional(),
-  grossMarginOk: z.boolean().optional(),
-  operatingCashFlowPositiveOk: z.boolean().optional(),
-  assetLiabilityRatioOk: z.boolean().optional(),
+
+  // 基本面检查
   parentNetProfitGrowthOk: z.boolean().optional(),
-  profitGrowthOk: z.boolean().optional(),
-  revenueGrowthOk: z.boolean().optional(),
+  grossMarginOk: z.boolean().optional(),
+  netProfitMarginOk: z.boolean().optional(),
+  assetLiabilityRatioOk: z.boolean().optional(),
   riskRewardOk: z.boolean().optional(),
-  riskRewardRatio: z.enum(['gt2', 'eq1']).optional(),
-  turnoverRateOk: z.boolean().optional(),
-  tradingAmountOk: z.boolean().optional(),
-  superLargeNetInflowOk: z.boolean().optional(),
-  superLargeNetInflowRatioOk: z.boolean().optional(),
+
+  // 换手率（用户填数字，>15% 时需确认方向）
+  turnoverRate: z.number().min(0).optional(),
+  turnoverDirection: z.enum(['net_inflow', 'net_outflow']).optional(),
+
   weeklyCloseAboveEma20Ok: z.boolean().optional(),
-  weeklyEma20SlopeOk: z.boolean().optional(),
-  forceContinued: z.boolean().optional(),
-  // Deprecated legacy checklist fields kept only so old local records can still be read.
-  netMarginOk: z.boolean().optional(),
-  debtRatioOk: z.boolean().optional(),
-  priceAboveMa50Ok: z.boolean().optional(),
-  trendJudgment: z.enum(['上涨趋势', '下降趋势', '区间震荡', '区间', '下降', '上升']).optional(),
-  marketState: z.string().optional(),
-  buyStrategy: z.string().optional(),
-  technicalPattern: z.string().optional(),
-  patternRemark: z.string().optional(),
-  marketStructure: z.string().optional(),
-  trendQuality: z.string().optional(),
-  priceLocation: z.string().optional(),
-  marketBackground: z.enum(['STRONG_UP', 'NORMAL_UP', 'RANGE', 'DOWN', 'UNCLEAR']).optional(),
-  currentStructure: z.enum(['SHALLOW_PULLBACK', 'EMA21_PULLBACK', 'HORIZONTAL_PLATFORM', 'NARROW_UP_CHANNEL', 'TRIANGLE_CONTRACTION', 'CUP_HANDLE', 'RANGE_BOTTOM', 'RANGE_MIDDLE', 'RANGE_TOP', 'REVERSAL_BREAKOUT_PULLBACK', 'NO_VALID_STRUCTURE']).optional(),
-  riskState: z.enum(['NONE', 'OVERHEATED', 'DIVERGENCE', 'INVALIDATED']).optional(),
-  entryType: z.enum(['H1', 'H2', 'PLATFORM_BREAKOUT', 'BREAKOUT_PULLBACK', 'CHANNEL_PULLBACK', 'TRIANGLE_BREAKOUT', 'CUP_HANDLE_BREAKOUT', 'DOUBLE_BOTTOM_CONFIRMATION', 'FAILED_BREAKDOWN_RECLAIM', 'EFFECTIVE_BREAKOUT', 'DIRECTIONAL_BREAKOUT', 'REVERSAL_BREAKOUT_PULLBACK', 'NONE']).optional(),
+
+  // 价格行为策略
+  marketBackground: z.enum(['BULL_TREND', 'BEAR_TREND', 'TRADING_RANGE']).optional(),
+  positionPhase: z.enum(['PULLBACK', 'CONSOLIDATION', 'ACCELERATION', 'BOUNCE', 'REVERSAL_TRY', 'LOWER_EDGE', 'MIDDLE', 'UPPER_EDGE', 'IN_RANGE_CONSOLIDATION']).optional(),
+  concretePattern: z.enum([
+    'SHALLOW_PULLBACK', 'EMA21_TOUCH', 'CHANNEL_PULLBACK', 'DOUBLE_BOTTOM',
+    'HORIZONTAL_PLATFORM', 'TRIANGLE_CONTRACTION', 'CUP_HANDLE', 'WEDGE',
+    'BOUNCE_TO_RESISTANCE', 'LOW_DOUBLE_BOTTOM_TRY',
+    'FAILED_BREAKDOWN_RECLAIM', 'BULL_ENGULF_LOWER_EDGE',
+    'VALID_BREAKOUT', 'BREAKOUT_PULLBACK',
+    'REVERSAL_BREAKOUT_RETEST', 'DOUBLE_BOTTOM_CONFIRM',
+    'NONE'
+  ]).optional(),
+
+  // 推导结果（系统填充）
   strategyDecision: z.enum(['BUY', 'WATCH', 'DO_NOT_BUY', 'PASS']).optional(),
-  entryTypes: z.array(z.string()).optional(),
-  entryOptions: z.array(z.enum(['H1', 'H2', 'PLATFORM_BREAKOUT', 'BREAKOUT_PULLBACK', 'CHANNEL_PULLBACK', 'TRIANGLE_BREAKOUT', 'CUP_HANDLE_BREAKOUT', 'DOUBLE_BOTTOM_CONFIRMATION', 'FAILED_BREAKDOWN_RECLAIM', 'EFFECTIVE_BREAKOUT', 'DIRECTIONAL_BREAKOUT', 'REVERSAL_BREAKOUT_PULLBACK', 'NONE'])).optional(),
+  entryType: z.string().optional(),
   strategyNote: z.string().optional(),
-  legacyTrigger: z.string().optional(),
-  reviewDecision: z.enum(['pending', 'approved', 'rejected']).optional(),
-  decisionReason: z.string().optional(),
+
+  // 交易计划
   stopLossPrice: z.number().min(0).optional(),
   targetPrice: z.number().min(0).optional(),
   takeProfitPrice: z.number().min(0).optional(),
+  reviewDecision: z.enum(['pending', 'approved', 'rejected']).optional(),
+  decisionReason: z.string().optional(),
   trackingAnalysis: z.string().optional(),
   watchingOutcome: z.enum(['pending', 'success', 'failed']).optional(),
 });

@@ -33,17 +33,27 @@ async function getCurrentUser() {
 }
 
 function normalizeLoadedStock(stock: Stock): Stock {
-  const strategy = migrateLegacyStrategy(stock);
-  const strategyOutput = evaluateBuyStrategy(strategy);
-  const normalized = {
+  // Migrate legacy strategy fields
+  const legacyStrategy = migrateLegacyStrategy(stock);
+  const strategyOutput = evaluateBuyStrategy(legacyStrategy);
+
+  // Fill in new checklist fields from legacy fields if missing
+  const normalized: Stock = {
     ...stock,
-    riskRewardRatio: stock.riskRewardRatio || (stock.riskRewardOk ? 'gt2' : undefined),
-    ...strategy,
+    parentNetProfitGrowthOk: stock.parentNetProfitGrowthOk ?? stock.profitGrowthOk ?? false,
+    grossMarginOk: stock.grossMarginOk ?? false,
+    netProfitMarginOk: stock.netProfitMarginOk ?? false,
+    assetLiabilityRatioOk: stock.assetLiabilityRatioOk ?? false,
+    riskRewardOk: stock.riskRewardOk ?? false,
+    weeklyCloseAboveEma20Ok: stock.weeklyCloseAboveEma20Ok ?? false,
+    // Strategy fields
+    marketBackground: stock.marketBackground || legacyStrategy.marketBackground,
+    positionPhase: stock.positionPhase || legacyStrategy.positionPhase,
+    concretePattern: stock.concretePattern || legacyStrategy.concretePattern,
     strategyDecision: stock.strategyDecision || strategyOutput.decision,
-    entryType: strategy.entryType,
-    entryOptions: stock.entryOptions || strategyOutput.entryOptions,
     strategyNote: stock.strategyNote || strategyOutput.note,
   };
+
   if (stock.status !== 'watching') return normalized;
   return {
     ...normalized,
@@ -128,52 +138,52 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
-function normalizeStockForSave(stock: Omit<Stock, 'id' | 'createdAt' | 'updatedAt'>): Omit<Stock, 'id' | 'createdAt' | 'updatedAt'> {
-  const reviewDecision = stock.reviewDecision || 'approved';
-  const targetPrice = stock.targetPrice == null ? stock.takeProfitPrice : stock.targetPrice;
-  const strategy = migrateLegacyStrategy(stock);
-  const strategyOutput = evaluateBuyStrategy(strategy);
+function normalizeStockForSave(stock: Partial<Stock> & { name: string; buyPrice: number; buyDate: string }): Stock {
+  const legacyStrategy = migrateLegacyStrategy(stock);
+  const strategyOutput = evaluateBuyStrategy(legacyStrategy);
+
+  const now = new Date().toISOString();
   return {
-    ...stock,
+    id: stock.id || generateId(),
     marketTag: stock.marketTag || 'A股',
-    triggerTime: stock.triggerTime || new Date().toISOString(),
+    name: stock.name,
+    buyQuantity: stock.buyQuantity || undefined,
+    triggerTime: stock.triggerTime || now,
     triggerPrice: stock.triggerPrice == null ? undefined : Number(stock.triggerPrice),
+    buyPrice: Number(stock.buyPrice),
+    buyDate: stock.buyDate,
+    buyReason: stock.buyReason || '',
+    buyPsychology: stock.buyPsychology || '',
     emotionTag: stock.emotionTag || '理性',
-    roicOk: Boolean(stock.roicOk),
+
+    parentNetProfitGrowthOk: Boolean(stock.parentNetProfitGrowthOk),
     grossMarginOk: Boolean(stock.grossMarginOk),
-    operatingCashFlowPositiveOk: Boolean(stock.operatingCashFlowPositiveOk),
+    netProfitMarginOk: Boolean(stock.netProfitMarginOk),
     assetLiabilityRatioOk: Boolean(stock.assetLiabilityRatioOk),
-    parentNetProfitGrowthOk: stock.parentNetProfitGrowthOk == null ? Boolean(stock.profitGrowthOk) : Boolean(stock.parentNetProfitGrowthOk),
-    profitGrowthOk: Boolean(stock.profitGrowthOk),
-    revenueGrowthOk: stock.revenueGrowthOk == null ? Boolean(stock.profitGrowthOk) : Boolean(stock.revenueGrowthOk),
     riskRewardOk: Boolean(stock.riskRewardOk),
-    riskRewardRatio: stock.riskRewardRatio || (stock.riskRewardOk ? 'gt2' : undefined),
-    turnoverRateOk: Boolean(stock.turnoverRateOk),
-    tradingAmountOk: Boolean(stock.tradingAmountOk),
-    superLargeNetInflowOk: Boolean(stock.superLargeNetInflowOk),
-    superLargeNetInflowRatioOk: Boolean(stock.superLargeNetInflowRatioOk),
+    turnoverRate: stock.turnoverRate,
+    turnoverDirection: stock.turnoverDirection,
     weeklyCloseAboveEma20Ok: Boolean(stock.weeklyCloseAboveEma20Ok),
-    weeklyEma20SlopeOk: Boolean(stock.weeklyEma20SlopeOk),
-    forceContinued: Boolean(stock.forceContinued),
-    netMarginOk: Boolean(stock.netMarginOk),
-    debtRatioOk: Boolean(stock.debtRatioOk),
-    priceAboveMa50Ok: Boolean(stock.priceAboveMa50Ok),
-    trendJudgment: stock.trendJudgment || '上涨趋势',
-    marketState: stock.marketState || '强上升',
-    buyStrategy: stock.buyStrategy || stock.technicalPattern || '强趋势小回调H1',
-    technicalPattern: stock.technicalPattern || stock.buyStrategy || '强趋势小回调H1',
-    patternRemark: stock.patternRemark || '',
-    ...strategy,
-    strategyDecision: strategyOutput.decision,
-    entryType: strategy.entryType,
-    entryOptions: strategyOutput.entryOptions,
-    strategyNote: strategyOutput.note,
-    reviewDecision,
-    status: stock.status === 'sold' ? 'sold' : 'holding',
+
+    marketBackground: stock.marketBackground || legacyStrategy.marketBackground,
+    positionPhase: stock.positionPhase || legacyStrategy.positionPhase,
+    concretePattern: stock.concretePattern || legacyStrategy.concretePattern,
+    strategyDecision: stock.strategyDecision || strategyOutput.decision,
+    entryType: stock.entryType || strategyOutput.entryType,
+    strategyNote: stock.strategyNote || strategyOutput.note,
+
+    reviewDecision: stock.reviewDecision || 'approved',
     decisionReason: stock.decisionReason?.trim() || '',
+
     stopLossPrice: stock.stopLossPrice == null ? undefined : Number(stock.stopLossPrice),
-    targetPrice: targetPrice == null ? undefined : Number(targetPrice),
-    takeProfitPrice: targetPrice == null ? undefined : Number(targetPrice),
+    targetPrice: stock.targetPrice == null ? undefined : Number(stock.targetPrice),
+    takeProfitPrice: stock.targetPrice == null ? undefined : Number(stock.targetPrice),
+    trackingAnalysis: stock.trackingAnalysis || '',
+    watchingOutcome: stock.watchingOutcome,
+
+    status: stock.status === 'sold' ? 'sold' : 'holding',
+    createdAt: stock.createdAt || now,
+    updatedAt: now,
   };
 }
 
@@ -183,16 +193,11 @@ export async function getStockList(): Promise<{ data: Stock[] }> {
   return { data: stocks };
 }
 
-export async function addStock(data: Omit<Stock, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ data: Stock }> {
+export async function addStock(data: Partial<Stock> & { name: string; buyPrice: number; buyDate: string }): Promise<{ data: Stock }> {
   await new Promise((resolve) => setTimeout(resolve, 100));
   const stocks = await getAll();
-  const normalized = normalizeStockForSave(data);
-  const newStock: Stock = {
-    ...normalized,
-    id: generateId(),
-    createdAt: normalized.triggerTime || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  const newStock = normalizeStockForSave(data);
+  newStock.id = generateId();
   stocks.push(newStock);
   await saveAll(stocks, 'add');
   return { data: newStock };
@@ -200,7 +205,7 @@ export async function addStock(data: Omit<Stock, 'id' | 'createdAt' | 'updatedAt
 
 export async function updateStock(
   id: string,
-  data: Omit<Stock, 'id' | 'createdAt' | 'updatedAt'>
+  data: Partial<Stock> & { name: string; buyPrice: number; buyDate: string }
 ): Promise<{ data: Stock }> {
   await new Promise((resolve) => setTimeout(resolve, 100));
   const stocks = await getAll();

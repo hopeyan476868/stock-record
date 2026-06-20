@@ -1,4 +1,4 @@
-import type { CurrentStructure, EntryType, MarketBackground, RiskState, StrategyDecision } from '../utils/buyStrategyEngine';
+import type { MarketBackground, PositionPhase, ConcretePattern, StrategyDecision } from '../utils/buyStrategyEngine';
 
 // 股票状态
 export type StockStatus = 'holding' | 'sold' | 'watching';
@@ -6,11 +6,9 @@ export type StockMarketTag = 'A股' | '美股';
 export type WatchingOutcome = 'pending' | 'success' | 'failed';
 export type EmotionTag = 'FOMO' | '理性' | '犹豫';
 export type ReviewDecision = 'pending' | 'approved' | 'rejected';
-export type TrendJudgment = '上涨趋势' | '下降趋势' | '区间震荡' | '区间' | '下降' | '上升';
-export type TechnicalPattern = string;
 export type SellType = 'take_profit' | 'stop_loss';
 export type SellExecutionCheck = '是' | '否' | '部分执行';
-export type RiskRewardRatio = 'gt2' | 'eq1';
+export type TurnoverDirection = 'net_inflow' | 'net_outflow';
 
 export interface Stock {
   id: string;
@@ -24,56 +22,34 @@ export interface Stock {
   buyReason: string;
   buyPsychology?: string;
   emotionTag?: EmotionTag;
-  roicOk?: boolean;
-  grossMarginOk?: boolean;
-  operatingCashFlowPositiveOk?: boolean;
-  assetLiabilityRatioOk?: boolean;
-  parentNetProfitGrowthOk?: boolean;
-  profitGrowthOk?: boolean;
-  /** @deprecated legacy checklist field; new records use parentNetProfitGrowthOk */
-  revenueGrowthOk?: boolean;
+  // 基本面检查
+  parentNetProfitGrowthOk?: boolean;   // 净利润同比 ≥20%
+  grossMarginOk?: boolean;             // 毛利率 ≥ 30%
+  netProfitMarginOk?: boolean;         // 净利率 > 5%
+  assetLiabilityRatioOk?: boolean;     // 资产负债率 ≤60%
+  // 盈亏比（固定 ≥2，无 eq1 选项）
   riskRewardOk?: boolean;
-  riskRewardRatio?: RiskRewardRatio;
-  turnoverRateOk?: boolean;
-  tradingAmountOk?: boolean;
-  superLargeNetInflowOk?: boolean;
-  superLargeNetInflowRatioOk?: boolean;
+  // 换手率（用户填数字，>15% 时需确认方向）
+  turnoverRate?: number;
+  turnoverDirection?: TurnoverDirection;
+  // 周线趋势
   weeklyCloseAboveEma20Ok?: boolean;
-  weeklyEma20SlopeOk?: boolean;
-  forceContinued?: boolean;
-  /** @deprecated legacy checklist field; new records use roicOk/grossMarginOk/profitGrowthOk */
-  netMarginOk?: boolean;
-  /** @deprecated legacy checklist field; new records use roicOk/grossMarginOk/profitGrowthOk */
-  debtRatioOk?: boolean;
-  priceAboveMa50Ok?: boolean;
-  trendJudgment?: TrendJudgment;
-  marketState?: string;
-  buyStrategy?: string;
-  technicalPattern?: TechnicalPattern;
-  patternRemark?: string;
-  /** @deprecated legacy strategy field */
-  marketStructure?: string;
-  /** @deprecated legacy strategy field */
-  trendQuality?: string;
-  /** @deprecated legacy strategy field */
-  priceLocation?: string;
+  // 价格行为策略
   marketBackground?: MarketBackground;
-  currentStructure?: CurrentStructure;
-  riskState?: RiskState;
-  entryType?: EntryType;
+  positionPhase?: PositionPhase;
+  concretePattern?: ConcretePattern;
+  // 系统推导
   strategyDecision?: StrategyDecision;
-  /** @deprecated legacy strategy output */
-  entryTypes?: string[];
-  entryOptions?: EntryType[];
+  entryType?: string;
   strategyNote?: string;
-  legacyTrigger?: string;
+  // review
   reviewDecision?: ReviewDecision;
   decisionReason?: string;
+  // 交易计划
   stopLossPrice?: number;
   targetPrice?: number;
   takeProfitPrice?: number;
-  trackingAnalysis?: string;
-  watchingOutcome?: WatchingOutcome;
+  // 卖出
   sellPrice?: number;
   sellDate?: string;
   sellQuantity?: number;
@@ -86,9 +62,23 @@ export interface Stock {
   takeProfitHit?: boolean;
   reversalCandle?: boolean;
   sellSummary?: string;
+  // 状态
   status: StockStatus;
+  trackingAnalysis?: string;
+  watchingOutcome?: WatchingOutcome;
   createdAt: string;
   updatedAt: string;
+  /** @deprecated legacy fields — kept for reading old localStorage records only */
+  roicOk?: boolean; operatingCashFlowPositiveOk?: boolean; revenueGrowthOk?: boolean; profitGrowthOk?: boolean;
+  riskRewardRatio?: string; turnoverRateOk?: boolean; tradingAmountOk?: boolean;
+  superLargeNetInflowOk?: boolean; superLargeNetInflowRatioOk?: boolean;
+  weeklyEma20SlopeOk?: boolean; forceContinued?: boolean; netMarginOk?: boolean;
+  debtRatioOk?: boolean; priceAboveMa50Ok?: boolean; trendJudgment?: string;
+  marketState?: string; buyStrategy?: string; technicalPattern?: string;
+  patternRemark?: string; marketStructure?: string; trendQuality?: string;
+  priceLocation?: string; currentStructure?: string; riskState?: string;
+  entryTypes?: string[]; entryOptions?: string[];
+  legacyTrigger?: string;
 }
 
 export interface Stats {
