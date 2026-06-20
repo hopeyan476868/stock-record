@@ -289,59 +289,56 @@ function handleClose() {
               <section class="rounded-2xl border border-slate-200 bg-white p-4">
                 <div class="mb-4 text-sm font-semibold text-slate-900">系统预设检查项</div>
                 <div class="grid gap-3 md:grid-cols-4">
-                  <label class="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
-                    <input v-model="form.parentNetProfitGrowthOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                  <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
+                    <input v-model="form.parentNetProfitGrowthOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                     <span class="text-sm text-slate-700">净利润同比 ≥ 20%</span>
                   </label>
-                  <label class="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
-                    <input v-model="form.grossMarginOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                  <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
+                    <input v-model="form.grossMarginOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                     <span class="text-sm text-slate-700">毛利率 ≥ 30%</span>
                   </label>
-                  <label class="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
-                    <input v-model="form.netProfitMarginOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                  <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
+                    <input v-model="form.netProfitMarginOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                     <span class="text-sm text-slate-700">净利率 > 5%</span>
                   </label>
-                  <label class="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
-                    <input v-model="form.assetLiabilityRatioOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                  <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
+                    <input v-model="form.assetLiabilityRatioOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                     <span class="text-sm text-slate-700">资产负债率 ≤ 60%</span>
                   </label>
                   <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
                     <input v-model="form.riskRewardOk" type="checkbox" class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                     <span class="text-sm font-semibold text-slate-700">盈亏比 ≥ 2</span>
                   </label>
-                  <label class="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
-                    <input v-model="form.weeklyCloseAboveEma20Ok" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                  <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
+                    <input v-model="form.weeklyCloseAboveEma20Ok" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                     <span class="text-sm text-slate-700">周线收盘 > EMA20</span>
                   </label>
                   <!-- 换手率 -->
-                  <div class="col-span-1 md:col-span-2 rounded-2xl border border-slate-200 px-4 py-3">
-                    <div class="flex items-start gap-3">
-                      <div class="mt-1 h-4 w-4 shrink-0 rounded border-2" :class="errors.turnoverRate ? 'border-red-400 bg-red-50' : 'border-slate-300'"></div>
-                      <div class="min-w-0 flex-1">
-                        <div class="text-sm text-slate-700">
-                          换手率
-                          <span v-if="showTurnoverWarning" class="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
-                            ⚠ &gt;15% 异常放量
-                          </span>
-                        </div>
-                        <div class="mt-2 flex flex-wrap items-center gap-2">
-                          <input v-model.number="form.turnoverRate" type="number" step="0.1" min="0" placeholder="输入换手率 %" class="input-field w-32 number-font" :class="{ 'border-red-400 bg-red-50': errors.turnoverRate }" />
-                          <span class="text-xs text-slate-400">%</span>
-                          <template v-if="showTurnoverWarning">
-                            <select v-model="form.turnoverDirection" aria-label="资金方向" class="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none">
-                              <option value="">选择资金方向...</option>
-                              <option value="net_inflow">净流入（放量启动）</option>
-                              <option value="net_outflow">净流出（出货风险）</option>
-                            </select>
-                            <label class="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
-                              <input v-model="form.turnoverConfirm" type="checkbox" class="h-3.5 w-3.5 rounded border-slate-300 text-blue-600" />
-                              已确认
-                            </label>
-                          </template>
-                        </div>
-                        <p v-if="errors.turnoverRate" class="mt-1.5 text-xs text-red-600">{{ errors.turnoverRate }}</p>
-                        <p v-else class="mt-1 text-xs text-slate-400">≤ 1% 流动性过低；1%-15% 正常；> 15% 需确认资金方向</p>
+                  <div class="md:col-span-2 rounded-2xl border border-slate-200">
+                    <div class="flex flex-col gap-2 px-4 py-3">
+                      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+                        <span class="text-sm text-slate-700 font-medium">换手率</span>
+                        <span v-if="showTurnoverWarning" class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
+                          ⚠ &gt;15% 异常放量
+                        </span>
                       </div>
+                      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+                        <input v-model.number="form.turnoverRate" type="number" step="0.1" min="0" placeholder="%" class="input-field w-28 number-font" :class="{ 'border-red-400 bg-red-50': errors.turnoverRate }" />
+                        <span class="text-xs text-slate-400">%</span>
+                        <template v-if="showTurnoverWarning">
+                          <select v-model="form.turnoverDirection" aria-label="资金方向" class="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none">
+                            <option value="">资金方向...</option>
+                            <option value="net_inflow">净流入（放量启动）</option>
+                            <option value="net_outflow">净流出（出货风险）</option>
+                          </select>
+                          <label class="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer shrink-0">
+                            <input v-model="form.turnoverConfirm" type="checkbox" class="h-3.5 w-3.5 rounded border-slate-300 text-blue-600" />
+                            已确认
+                          </label>
+                        </template>
+                      </div>
+                      <p v-if="errors.turnoverRate" class="text-xs text-red-600">{{ errors.turnoverRate }}</p>
+                      <p v-else class="text-xs text-slate-400">≤ 1% 流动性过低；1%-15% 正常；> 15% 需确认资金方向</p>
                     </div>
                   </div>
                 </div>

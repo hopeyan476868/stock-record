@@ -22,11 +22,11 @@ export type PositionPhase = BullPosition | BearPosition | RangePosition;
 
 // --- Level 3 ---
 // 上涨 + 回调中
-export type BullPullbackPattern = 'SHALLOW_PULLBACK' | 'EMA21_TOUCH' | 'CHANNEL_PULLBACK' | 'DOUBLE_BOTTOM';
+export type BullPullbackPattern = 'SHALLOW_PULLBACK' | 'EMA21_TOUCH' | 'CHANNEL_PULLBACK' | 'DOUBLE_BOTTOM' | 'DEEP_PULLBACK_HL_INTACT';
 // 上涨 + 中继整理
 export type BullConsolidationPattern = 'HORIZONTAL_PLATFORM' | 'TRIANGLE_CONTRACTION' | 'CUP_HANDLE' | 'WEDGE';
 // 下降 + 反弹中
-export type BearBouncePattern = 'BOUNCE_TO_RESISTANCE' | 'LOW_DOUBLE_BOTTOM_TRY';
+export type BearBouncePattern = 'BOUNCE_TO_RESISTANCE';
 // 下降 + 反转试探
 export type BearReversalPattern = 'REVERSAL_BREAKOUT_RETEST' | 'DOUBLE_BOTTOM_CONFIRM';
 // 区间 + 下沿
@@ -106,6 +106,7 @@ export const PULLBACK_PATTERNS: Array<{ value: BullPullbackPattern; label: strin
   { value: 'EMA21_TOUCH', label: 'EMA21回踩' },
   { value: 'CHANNEL_PULLBACK', label: '通道下轨' },
   { value: 'DOUBLE_BOTTOM', label: '双底' },
+  { value: 'DEEP_PULLBACK_HL_INTACT', label: '深回调（未破HL）' },
 ];
 export const CONSOLIDATION_PATTERNS: Array<{ value: BullConsolidationPattern; label: string }> = [
   { value: 'HORIZONTAL_PLATFORM', label: '水平平台' },
@@ -115,7 +116,6 @@ export const CONSOLIDATION_PATTERNS: Array<{ value: BullConsolidationPattern; la
 ];
 export const BOUNCE_PATTERNS: Array<{ value: BearBouncePattern; label: string }> = [
   { value: 'BOUNCE_TO_RESISTANCE', label: '反弹至压力位' },
-  { value: 'LOW_DOUBLE_BOTTOM_TRY', label: '低位双底试探' },
 ];
 export const REVERSAL_PATTERNS: Array<{ value: BearReversalPattern; label: string }> = [
   { value: 'REVERSAL_BREAKOUT_RETEST', label: '反转突破后回踩' },
@@ -136,9 +136,9 @@ export const RANGE_CONSOLIDATION_PATTERNS: Array<{ value: RangeConsolidationPatt
 ];
 export const CONCRETE_PATTERN_LABELS: Record<ConcretePattern, string> = {
   SHALLOW_PULLBACK: '浅回调', EMA21_TOUCH: 'EMA21回踩', CHANNEL_PULLBACK: '通道下轨',
-  DOUBLE_BOTTOM: '双底',
+  DOUBLE_BOTTOM: '双底', DEEP_PULLBACK_HL_INTACT: '深回调（未破HL）',
   HORIZONTAL_PLATFORM: '水平平台', TRIANGLE_CONTRACTION: '三角收敛', CUP_HANDLE: '杯柄', WEDGE: '楔形',
-  BOUNCE_TO_RESISTANCE: '反弹至压力位', LOW_DOUBLE_BOTTOM_TRY: '低位双底试探',
+  BOUNCE_TO_RESISTANCE: '反弹至压力位',
   REVERSAL_BREAKOUT_RETEST: '反转突破后回踩', DOUBLE_BOTTOM_CONFIRM: '双底确认',
   FAILED_BREAKDOWN_RECLAIM: '假跌破收回', BULL_ENGULF_LOWER_EDGE: '下沿阳线反包',
   VALID_BREAKOUT: '有效突破', BREAKOUT_PULLBACK: '突破回踩',
@@ -194,6 +194,11 @@ export function evaluateBuyStrategy(input: StrategyInput): StrategyOutput {
       if (pat === 'DOUBLE_BOTTOM') {
         return out('BUY', 'DOUBLE_BOTTOM_CONFIRMATION', 'none',
           '上涨趋势中的双底确认，说明回调结束。设第二个底下方止损。');
+      }
+      if (pat === 'DEEP_PULLBACK_HL_INTACT') {
+        return watch('NONE', 'divergence',
+          '深回调但最后一个 HL 未被破坏，上涨背景不变。但价格已跌穿 EMA21，不急于左侧抄底。'
+          + '等待重新站回 EMA21 或出现底部结构（双底/假破收回）后再入场。');
       }
       return noBuy('回调中的具体形态不合法，请重新选择。');
     }

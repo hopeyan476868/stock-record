@@ -292,28 +292,28 @@ function handleClose() {
                 <div class="col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div class="mb-3 text-sm font-semibold text-slate-900">核查</div>
                   <div class="grid gap-3 md:grid-cols-2">
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2 cursor-pointer">
-                      <input v-model="form.parentNetProfitGrowthOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-3 cursor-pointer">
+                      <input v-model="form.parentNetProfitGrowthOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                       <span class="text-sm text-slate-700">净利润同比 ≥ 20%</span>
                     </label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2 cursor-pointer">
-                      <input v-model="form.grossMarginOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-3 cursor-pointer">
+                      <input v-model="form.grossMarginOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                       <span class="text-sm text-slate-700">毛利率 ≥ 30%</span>
                     </label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2 cursor-pointer">
-                      <input v-model="form.netProfitMarginOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-3 cursor-pointer">
+                      <input v-model="form.netProfitMarginOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                       <span class="text-sm text-slate-700">净利率 > 5%</span>
                     </label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2 cursor-pointer">
-                      <input v-model="form.assetLiabilityRatioOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-3 cursor-pointer">
+                      <input v-model="form.assetLiabilityRatioOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                       <span class="text-sm text-slate-700">资产负债率 ≤ 60%</span>
                     </label>
-                    <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-2 cursor-pointer">
+                    <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-3 cursor-pointer">
                       <input v-model="form.riskRewardOk" type="checkbox" class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                       <span class="text-sm font-semibold text-slate-700">盈亏比 ≥ 2</span>
                     </label>
-                    <label class="flex items-start gap-3 rounded-xl bg-white px-3 py-2 cursor-pointer">
-                      <input v-model="form.weeklyCloseAboveEma20Ok" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-3 cursor-pointer">
+                      <input v-model="form.weeklyCloseAboveEma20Ok" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                       <span class="text-sm text-slate-700">周线收盘 > EMA20</span>
                     </label>
                   </div>
