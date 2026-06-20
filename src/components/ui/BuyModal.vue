@@ -45,7 +45,7 @@ const form = ref<BuyStockInput>({
   profitGrowthOk: false,
   revenueGrowthOk: false,
   riskRewardOk: false,
-  riskRewardRatio: undefined,
+  riskRewardRatio: 'gt2',
   turnoverRateOk: false,
   tradingAmountOk: false,
   superLargeNetInflowOk: false,
@@ -62,7 +62,10 @@ const form = ref<BuyStockInput>({
   marketStructure: 'UP',
   trendQuality: 'STRONG',
   priceLocation: 'TREND_PULLBACK',
+  marketBackground: 'STRONG_UP',
+  currentStructure: 'SHALLOW_PULLBACK',
   riskState: 'NONE',
+  entryType: 'H1',
   reviewDecision: 'approved',
   decisionReason: '',
   stopLossPrice: 0,
@@ -94,7 +97,7 @@ watch(() => props.open, (isOpen) => {
       profitGrowthOk: false,
       revenueGrowthOk: false,
       riskRewardOk: false,
-      riskRewardRatio: undefined,
+      riskRewardRatio: 'gt2',
       turnoverRateOk: false,
       tradingAmountOk: false,
       superLargeNetInflowOk: false,
@@ -111,7 +114,10 @@ watch(() => props.open, (isOpen) => {
       marketStructure: 'UP',
       trendQuality: 'STRONG',
       priceLocation: 'TREND_PULLBACK',
+      marketBackground: 'STRONG_UP',
+      currentStructure: 'SHALLOW_PULLBACK',
       riskState: 'NONE',
+      entryType: 'H1',
       reviewDecision: 'approved',
       decisionReason: '',
       stopLossPrice: 0,
@@ -125,10 +131,10 @@ watch(() => props.open, (isOpen) => {
 });
 
 const strategyInput = computed(() => ({
-  marketStructure: form.value.marketStructure || 'UP',
-  trendQuality: form.value.trendQuality || 'STRONG',
-  priceLocation: form.value.priceLocation || 'TREND_PULLBACK',
+  marketBackground: form.value.marketBackground || 'STRONG_UP',
+  currentStructure: form.value.currentStructure || 'SHALLOW_PULLBACK',
   riskState: form.value.riskState || 'NONE',
+  entryType: form.value.entryType || 'H1',
 }));
 const strategyOutput = computed(() => evaluateBuyStrategy(strategyInput.value));
 const strategySummary = computed(() => getStrategySummary(strategyInput.value, strategyOutput.value));
@@ -138,6 +144,7 @@ const sopPassed = computed(() => Boolean(
   form.value.operatingCashFlowPositiveOk &&
   form.value.assetLiabilityRatioOk &&
   form.value.parentNetProfitGrowthOk &&
+  form.value.riskRewardOk &&
   Boolean(form.value.riskRewardRatio) &&
   form.value.turnoverRateOk &&
   form.value.tradingAmountOk &&
@@ -158,17 +165,18 @@ function validate(forceContinued = false): boolean {
   const payload = {
     ...form.value,
     buyReason: strategySummary.value,
-    buyStrategy: strategyOutput.value.entryTypes.filter((item) => item !== 'NONE').map((item) => ENTRY_TYPE_LABELS[item]).join('/') || '无买点',
+    buyStrategy: ENTRY_TYPE_LABELS[strategyInput.value.entryType],
     technicalPattern: undefined,
     patternRemark: undefined,
     strategyDecision: strategyOutput.value.decision,
-    entryTypes: strategyOutput.value.entryTypes,
+    entryType: strategyInput.value.entryType,
+    entryOptions: strategyOutput.value.entryOptions,
     strategyNote: strategyOutput.value.note,
     takeProfitPrice: Number(form.value.targetPrice || form.value.takeProfitPrice || 0),
     status: 'holding',
     reviewDecision: 'approved',
     watchingOutcome: undefined,
-    riskRewardOk: Boolean(form.value.riskRewardRatio),
+    riskRewardOk: Boolean(form.value.riskRewardOk && form.value.riskRewardRatio),
     forceContinued,
   } as BuyStockInput;
   if (!forceContinued && !sopPassed.value) {
@@ -282,9 +290,11 @@ function handleClose() {
                     <input v-model="form.parentNetProfitGrowthOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                     <span class="text-sm text-slate-700">归母净利润同比 &gt; 20%</span>
                   </label>
-                  <label class="text-sm text-slate-700">盈亏比
-                    <select v-model="form.riskRewardRatio" class="input-field mt-2">
-                      <option :value="undefined">请选择</option><option value="gt2">&gt; 2</option><option value="eq1">= 1</option>
+                  <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+                    <input v-model="form.riskRewardOk" type="checkbox" class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <span class="whitespace-nowrap text-sm text-slate-700">盈亏比</span>
+                    <select v-model="form.riskRewardRatio" aria-label="盈亏比选项" class="h-9 min-w-24 flex-1 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100">
+                      <option value="eq1">= 1</option><option value="gt2">≥ 2</option>
                     </select>
                   </label>
                   <label class="flex items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3"><input v-model="form.turnoverRateOk" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /><span class="text-sm text-slate-700">换手率 3%-15%</span></label>
@@ -302,7 +312,7 @@ function handleClose() {
                 </div>
               </section>
 
-              <BuyStrategyPanel v-model:market-structure="form.marketStructure" v-model:trend-quality="form.trendQuality" v-model:price-location="form.priceLocation" v-model:risk-state="form.riskState" />
+              <BuyStrategyPanel v-model:market-background="form.marketBackground" v-model:current-structure="form.currentStructure" v-model:risk-state="form.riskState" v-model:entry-type="form.entryType" />
 
               <section class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <div class="mb-4 flex items-center justify-between gap-3">

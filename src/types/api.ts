@@ -1,4 +1,4 @@
-import type { EntryType, MarketStructure, PriceLocation, RiskState, StrategyDecision, TrendQuality } from '../utils/buyStrategyEngine';
+import type { CurrentStructure, EntryType, MarketBackground, RiskState, StrategyDecision } from '../utils/buyStrategyEngine';
 
 // 股票状态
 export type StockStatus = 'holding' | 'sold' | 'watching';
@@ -51,12 +51,20 @@ export interface Stock {
   buyStrategy?: string;
   technicalPattern?: TechnicalPattern;
   patternRemark?: string;
-  marketStructure?: MarketStructure;
-  trendQuality?: TrendQuality;
-  priceLocation?: PriceLocation;
+  /** @deprecated legacy strategy field */
+  marketStructure?: string;
+  /** @deprecated legacy strategy field */
+  trendQuality?: string;
+  /** @deprecated legacy strategy field */
+  priceLocation?: string;
+  marketBackground?: MarketBackground;
+  currentStructure?: CurrentStructure;
   riskState?: RiskState;
+  entryType?: EntryType;
   strategyDecision?: StrategyDecision;
-  entryTypes?: EntryType[];
+  /** @deprecated legacy strategy output */
+  entryTypes?: string[];
+  entryOptions?: EntryType[];
   strategyNote?: string;
   legacyTrigger?: string;
   reviewDecision?: ReviewDecision;

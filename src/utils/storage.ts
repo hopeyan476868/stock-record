@@ -40,7 +40,8 @@ function normalizeLoadedStock(stock: Stock): Stock {
     riskRewardRatio: stock.riskRewardRatio || (stock.riskRewardOk ? 'gt2' : undefined),
     ...strategy,
     strategyDecision: stock.strategyDecision || strategyOutput.decision,
-    entryTypes: stock.entryTypes || strategyOutput.entryTypes,
+    entryType: strategy.entryType,
+    entryOptions: stock.entryOptions || strategyOutput.entryOptions,
     strategyNote: stock.strategyNote || strategyOutput.note,
   };
   if (stock.status !== 'watching') return normalized;
@@ -164,7 +165,8 @@ function normalizeStockForSave(stock: Omit<Stock, 'id' | 'createdAt' | 'updatedA
     patternRemark: stock.patternRemark || '',
     ...strategy,
     strategyDecision: strategyOutput.decision,
-    entryTypes: strategyOutput.entryTypes,
+    entryType: strategy.entryType,
+    entryOptions: strategyOutput.entryOptions,
     strategyNote: strategyOutput.note,
     reviewDecision,
     status: stock.status === 'sold' ? 'sold' : 'holding',
