@@ -2,55 +2,62 @@
 import { computed, watch } from 'vue';
 import StrategyInfoPopover from '@/components/ui/StrategyInfoPopover.vue';
 import {
-  MARKET_BACKGROUND_OPTIONS, DECISION_LABELS, ENTRY_TYPE_LABELS, RISK_HINT_LABELS,
-  getPositionPhases, getConcretePatterns, evaluateBuyStrategy,
-  MARKET_BACKGROUND_LABELS, POSITION_PHASE_LABELS, CONCRETE_PATTERN_LABELS,
-  PHASE_DESCRIPTIONS,
-  type MarketBackground, type PositionPhase, type ConcretePattern,
+  MARKET_BACKGROUND_OPTIONS,
+  ENTRY_TRIGGER_LABELS,
+  STRATEGY_CONCLUSION_LABELS,
+  getTradingScenarios,
+  getEntryTriggers,
+  evaluateBuyStrategy,
+  MARKET_BACKGROUND_LABELS,
+  TRADING_SCENARIO_LABELS,
+  SCENARIO_DESCRIPTIONS,
+  type MarketBackground,
+  type TradingScenario,
+  type EntryTrigger,
 } from '@/utils/buyStrategyEngine';
 
 const props = defineProps<{
   marketBackground?: MarketBackground;
-  positionPhase?: PositionPhase;
-  concretePattern?: ConcretePattern;
+  tradingScenario?: TradingScenario;
+  entryTrigger?: EntryTrigger;
+  volumePriceConfirmed?: boolean;
   entryType?: string;
 }>();
 
 const emit = defineEmits<{
   'update:marketBackground': [value: MarketBackground];
-  'update:positionPhase': [value: PositionPhase];
-  'update:concretePattern': [value: ConcretePattern];
+  'update:tradingScenario': [value: TradingScenario];
+  'update:entryTrigger': [value: EntryTrigger];
+  'update:volumePriceConfirmed': [value: boolean];
   'update:entryType': [value: string];
 }>();
 
-const bg = computed({
-  get: () => props.marketBackground || 'BULL_TREND',
-  set: (v: MarketBackground) => emit('update:marketBackground', v),
+const background = computed({
+  get: () => props.marketBackground || 'STRONG_UP',
+  set: (value: MarketBackground) => emit('update:marketBackground', value),
 });
-const phase = computed({
-  get: () => props.positionPhase || 'PULLBACK',
-  set: (v: PositionPhase) => emit('update:positionPhase', v),
+const scenario = computed({
+  get: () => props.tradingScenario || 'SHALLOW_PULLBACK',
+  set: (value: TradingScenario) => emit('update:tradingScenario', value),
 });
-const pattern = computed({
-  get: () => props.concretePattern || 'SHALLOW_PULLBACK',
-  set: (v: ConcretePattern) => emit('update:concretePattern', v),
+const trigger = computed({
+  get: () => props.entryTrigger || 'H1_CONFIRM',
+  set: (value: EntryTrigger) => emit('update:entryTrigger', value),
 });
-const entry = computed({
-  get: () => props.entryType || '',
-  set: (v: string) => emit('update:entryType', v),
+const volumeConfirmed = computed({
+  get: () => Boolean(props.volumePriceConfirmed),
+  set: (value: boolean) => emit('update:volumePriceConfirmed', value),
 });
 
-const phaseOptions = computed(() => getPositionPhases(bg.value));
-const patternOptions = computed(() => getConcretePatterns(phase.value));
+const scenarioOptions = computed(() => getTradingScenarios(background.value));
+const triggerOptions = computed(() => getEntryTriggers(scenario.value));
 const strategy = computed(() => evaluateBuyStrategy({
-  marketBackground: bg.value,
-  positionPhase: phase.value,
-  concretePattern: pattern.value,
+  marketBackground: background.value,
+  tradingScenario: scenario.value,
+  entryTrigger: trigger.value,
+  volumePriceConfirmed: volumeConfirmed.value,
 }));
-
-const phaseDesc = computed(() => PHASE_DESCRIPTIONS[phase.value] || '');
-const entryOptions = computed(() => strategy.value.entryOptions || []);
-
+const scenarioDescription = computed(() => SCENARIO_DESCRIPTIONS[scenario.value]);
 const decisionTone = computed(() => ({
   BUY: 'border-emerald-300 bg-emerald-50 text-emerald-800',
   WATCH: 'border-amber-300 bg-amber-50 text-amber-800',
@@ -58,130 +65,95 @@ const decisionTone = computed(() => ({
   PASS: 'border-slate-300 bg-slate-100 text-slate-700',
 }[strategy.value.decision]));
 
-const riskTone = computed(() => ({
-  none: 'bg-emerald-100 text-emerald-700',
-  overheating: 'bg-red-100 text-red-700',
-  divergence: 'bg-amber-100 text-amber-700',
-  invalidated: 'bg-red-100 text-red-700',
-}[strategy.value.riskHint]));
-
-// Reset phase when bg changes
-watch(bg, () => {
-  const valid = phaseOptions.value.some(o => o.value === phase.value);
-  if (!valid) phase.value = phaseOptions.value[0]?.value || 'PULLBACK';
+watch(background, () => {
+  const options = scenarioOptions.value;
+  if (!options.some(item => item.value === scenario.value)) scenario.value = options[0].value;
+  volumeConfirmed.value = false;
 });
-
-// Reset pattern when phase changes
-watch(phase, () => {
-  const opts = patternOptions.value;
-  if (opts.length === 0) {
-    pattern.value = 'NONE';
-  } else if (!opts.some(o => o.value === pattern.value)) {
-    pattern.value = opts[0]?.value || 'NONE';
-  }
+watch(scenario, () => {
+  const options = triggerOptions.value;
+  if (!options.some(item => item.value === trigger.value)) trigger.value = options[0].value;
+  volumeConfirmed.value = false;
 });
-
-// Auto-select entry when strategy changes
-watch(strategy, () => {
-  const opts = entryOptions.value;
-  if (opts.length && opts[0] !== 'NONE') {
-    entry.value = opts[0];
-  } else {
-    entry.value = '';
-  }
+watch(trigger, () => {
+  emit('update:entryType', trigger.value === 'NONE' ? '' : trigger.value);
+  volumeConfirmed.value = false;
 }, { immediate: true });
 </script>
 
 <template>
   <section class="rounded-2xl border border-slate-200 bg-white p-4">
-    <div class="mb-4 flex items-center justify-between">
-      <div>
-        <h4 class="text-sm font-semibold text-slate-900">交易策略（价格行为）</h4>
-        <p class="mt-1 text-xs text-slate-500">市场背景 → 形态位置 → 具体形态 → 入场位置</p>
-      </div>
-      <span v-if="strategy.riskHint !== 'none'" class="rounded-full px-3 py-1 text-xs font-bold" :class="riskTone">
-        {{ RISK_HINT_LABELS[strategy.riskHint] }}
-      </span>
+    <div class="mb-4">
+      <h4 class="text-sm font-semibold text-slate-900">交易策略（价格行为）</h4>
+      <p class="mt-1 text-xs text-slate-500">市场环境 → 交易场景（形态＋位置）→ 入场触发 → 风控执行</p>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-4">
-      <!-- Level 1: 背景 -->
+    <div class="grid gap-4 md:grid-cols-3">
       <div>
         <div class="flex items-center gap-1.5 text-sm text-slate-700">
-          ① 市场背景
-          <StrategyInfoPopover title="市场背景：60～120 根 K 线的大结构">
-            <p><b>上涨趋势：</b>HH + HL 清晰，回调不破前低，驱动方向向上。</p>
-            <p class="mt-2"><b>下降趋势：</b>LH + LL，反弹不破前高，驱动方向向下。</p>
-            <p class="mt-2"><b>区间震荡：</b>有清晰上下沿，价格在边界之间摆动，无趋势方向。</p>
+          ① 市场环境
+          <StrategyInfoPopover title="市场环境：最近2～3个主要波段">
+            <p><b>强势上涨：</b>HH/HL清晰，均线多头，回调浅。</p>
+            <p class="mt-2"><b>普通上涨：</b>趋势仍向上，但回调加深、重叠增加。</p>
+            <p class="mt-2"><b>震荡区间：</b>上下沿反复，没有持续方向。</p>
+            <p class="mt-2"><b>下降趋势：</b>LH/LL清晰；只保留三推衰竭和突破前LH后的首次回调。</p>
+            <p class="mt-2"><b>结构不清：</b>没有趋势、清晰区间或可执行计划，直接放弃。</p>
           </StrategyInfoPopover>
         </div>
-        <select v-model="bg" aria-label="市场背景" class="input-field mt-2">
+        <select v-model="background" aria-label="市场环境" class="input-field mt-2">
           <option v-for="item in MARKET_BACKGROUND_OPTIONS" :key="item.value" :value="item.value">{{ item.label }}</option>
         </select>
       </div>
 
-      <!-- Level 2: 形态位置 -->
       <div>
         <div class="flex items-center gap-1.5 text-sm text-slate-700">
-          ② 形态位置
-          <StrategyInfoPopover title="形态位置：价格在背景中的阶段">
-            <p class="mb-2">不同背景有不同可选的位置。</p>
-            <p class="mt-2"><b>上涨趋势：</b>回调中（歇脚）/ 中继整理（横盘）/ 高位加速（过热）</p>
-            <p class="mt-2"><b>下降趋势：</b>反弹中（不买）/ 反转试探（唯一例外）</p>
-            <p class="mt-2"><b>区间震荡：</b>下沿 / 中部 / 上沿 / 区间内整理</p>
+          ② 交易场景
+          <StrategyInfoPopover title="交易场景：形态＋关键位置">
+            <p>场景回答“什么形态正在什么位置形成”，不再把位置和形态拆成两个容易重叠的字段。</p>
+            <p class="mt-2">例如：区间下沿的双底、下降趋势三推衰竭＋大级别支撑。</p>
           </StrategyInfoPopover>
         </div>
-        <select v-model="phase" aria-label="形态位置" class="input-field mt-2">
-          <option v-for="item in phaseOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+        <select v-model="scenario" aria-label="交易场景" class="input-field mt-2">
+          <option v-for="item in scenarioOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
         </select>
-        <p class="mt-1.5 text-xs leading-4 text-slate-500">{{ phaseDesc }}</p>
+        <p class="mt-1.5 text-xs leading-4 text-slate-500">{{ scenarioDescription }}</p>
       </div>
 
-      <!-- Level 3: 具体形态 -->
       <div>
         <div class="flex items-center gap-1.5 text-sm text-slate-700">
-          ③ 具体形态
-          <StrategyInfoPopover title="具体形态：K 线级别的结构">
-            <p>只有当前位置下的合法形态才会显示。</p>
+          ③ 入场触发
+          <StrategyInfoPopover title="入场触发：明确的下单事件">
+            <p><b>H1/H2确认：</b>突破对应信号K高点。</p>
+            <p class="mt-2"><b>反包K高点突破：</b>下沿出现强阳反包后，突破反包K高点。</p>
+            <p class="mt-2"><b>放量突破：</b>收盘突破关键位，量达到20日均量150%。</p>
+            <p class="mt-2"><b>回踩确认转强：</b>缩量回踩不破，再突破止跌K高点。</p>
+            <p class="mt-2"><b>假跌破收回确认：</b>收回下沿后突破收回K高点。</p>
+            <p class="mt-2"><b>双底局部颈线突破：</b>右底形成后，突破两个底之间的局部反弹高点；不是区间上沿。</p>
           </StrategyInfoPopover>
         </div>
-        <select v-model="pattern" aria-label="具体形态" class="input-field mt-2" :disabled="patternOptions.length === 0">
-          <option v-if="patternOptions.length === 0" value="NONE">无合适形态（系统建议等待）</option>
-          <option v-for="item in patternOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-        </select>
-      </div>
-
-      <!-- Level 4: 入场位置 -->
-      <div>
-        <div class="flex items-center gap-1.5 text-sm text-slate-700">
-          ④ 入场位置
-          <StrategyInfoPopover title="入场位置：你计划以什么信号入场">
-            <p>系统根据前三项推导出可选入场方式。</p>
-            <p class="mt-2">如果系统建议了多个选项，你可以选择最适合当前行情的那个。</p>
-            <p class="mt-2">如果策略是"不买"或"放弃"，此下拉将不可用。</p>
-          </StrategyInfoPopover>
-        </div>
-        <select v-model="entry" aria-label="入场位置" class="input-field mt-2" :disabled="entryOptions.length === 0 || entryOptions[0] === 'NONE'">
-          <option v-if="!entryOptions.length || entryOptions[0] === 'NONE'" value="">无可用入场位置</option>
-          <option v-for="item in entryOptions" :key="item" :value="item">{{ ENTRY_TYPE_LABELS[item] }}</option>
+        <select v-model="trigger" aria-label="入场触发" class="input-field mt-2" :disabled="triggerOptions[0]?.value === 'NONE'">
+          <option v-for="item in triggerOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
         </select>
       </div>
     </div>
 
-    <!-- Result -->
+    <label v-if="trigger !== 'NONE'" class="mt-4 flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+      <input v-model="volumeConfirmed" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+      <span class="text-sm text-slate-700">量价条件已确认：{{ strategy.volumeGuide }}</span>
+    </label>
+
     <div class="mt-4 rounded-lg border p-4" :class="decisionTone">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex items-center gap-2">
-          <strong class="text-sm">最终决策：{{ DECISION_LABELS[strategy.decision] }}</strong>
-          <span v-if="entry" class="text-xs rounded-full bg-white/60 px-2 py-0.5">
-            入场：{{ ENTRY_TYPE_LABELS[entry as keyof typeof ENTRY_TYPE_LABELS] || entry }}
-          </span>
-        </div>
+        <strong class="text-sm">策略结论：{{ STRATEGY_CONCLUSION_LABELS[strategy.decision] }}</strong>
         <span class="text-xs font-semibold">
-          {{ MARKET_BACKGROUND_LABELS[bg] }} → {{ POSITION_PHASE_LABELS[phase] }} → {{ CONCRETE_PATTERN_LABELS[pattern] }}
+          {{ MARKET_BACKGROUND_LABELS[background] }} → {{ TRADING_SCENARIO_LABELS[scenario] }} → {{ ENTRY_TRIGGER_LABELS[trigger] }}
         </span>
       </div>
       <p class="mt-2 text-xs leading-5">{{ strategy.note }}</p>
+      <div v-if="trigger !== 'NONE'" class="mt-3 grid gap-2 border-t border-current/15 pt-3 text-xs sm:grid-cols-2">
+        <span><b>止损参考：</b>{{ strategy.stopLossGuide }}</span>
+        <span><b>目标参考：</b>{{ strategy.targetGuide }}</span>
+      </div>
     </div>
   </section>
 </template>

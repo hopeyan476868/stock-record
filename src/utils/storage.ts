@@ -35,23 +35,29 @@ async function getCurrentUser() {
 function normalizeLoadedStock(stock: Stock): Stock {
   // Migrate legacy strategy fields
   const legacyStrategy = migrateLegacyStrategy(stock);
-  const strategyOutput = evaluateBuyStrategy(legacyStrategy);
+  const strategyOutput = evaluateBuyStrategy({
+    ...legacyStrategy,
+    volumePriceConfirmed: Boolean(stock.volumePriceConfirmed),
+  });
 
-  // Fill in new checklist fields from legacy fields if missing
+  // Keep the current checklist explicit; old thresholds are not equivalent.
   const normalized: Stock = {
     ...stock,
-    parentNetProfitGrowthOk: stock.parentNetProfitGrowthOk ?? stock.profitGrowthOk ?? false,
-    grossMarginOk: stock.grossMarginOk ?? false,
-    netProfitMarginOk: stock.netProfitMarginOk ?? false,
-    assetLiabilityRatioOk: stock.assetLiabilityRatioOk ?? false,
+    revenueGrowthOk: stock.revenueGrowthOk ?? false,
+    deductedNetProfitGrowthOk: stock.deductedNetProfitGrowthOk ?? false,
+    grossMarginChangeOk: stock.grossMarginChangeOk ?? false,
+    roicOk: stock.roicOk ?? false,
+    operatingCashFlowPositiveOk: stock.operatingCashFlowPositiveOk ?? false,
     riskRewardOk: stock.riskRewardOk ?? false,
+    volumePriceConfirmed: stock.volumePriceConfirmed ?? false,
     weeklyCloseAboveEma20Ok: stock.weeklyCloseAboveEma20Ok ?? false,
     // Strategy fields
-    marketBackground: stock.marketBackground || legacyStrategy.marketBackground,
-    positionPhase: stock.positionPhase || legacyStrategy.positionPhase,
-    concretePattern: stock.concretePattern || legacyStrategy.concretePattern,
-    strategyDecision: stock.strategyDecision || strategyOutput.decision,
-    strategyNote: stock.strategyNote || strategyOutput.note,
+    marketBackground: legacyStrategy.marketBackground,
+    tradingScenario: legacyStrategy.tradingScenario,
+    entryTrigger: legacyStrategy.entryTrigger,
+    strategyDecision: strategyOutput.decision,
+    entryType: strategyOutput.entryType,
+    strategyNote: strategyOutput.note,
   };
 
   if (stock.status !== 'watching') return normalized;
@@ -140,7 +146,13 @@ function generateId(): string {
 
 function normalizeStockForSave(stock: Partial<Stock> & { name: string; buyPrice: number; buyDate: string }): Stock {
   const legacyStrategy = migrateLegacyStrategy(stock);
-  const strategyOutput = evaluateBuyStrategy(legacyStrategy);
+  const strategyInput = { ...legacyStrategy, volumePriceConfirmed: Boolean(stock.volumePriceConfirmed) };
+  const strategyOutput = evaluateBuyStrategy(strategyInput);
+
+  const trigger = Number(stock.triggerPrice || 0);
+  const stop = Number(stock.stopLossPrice || 0);
+  const target = Number(stock.targetPrice || 0);
+  const riskRewardOk = stop < trigger && trigger < target && (target - trigger) / (trigger - stop) >= 2;
 
   const now = new Date().toISOString();
   return {
@@ -156,21 +168,23 @@ function normalizeStockForSave(stock: Partial<Stock> & { name: string; buyPrice:
     buyPsychology: stock.buyPsychology || '',
     emotionTag: stock.emotionTag || '理性',
 
-    parentNetProfitGrowthOk: Boolean(stock.parentNetProfitGrowthOk),
-    grossMarginOk: Boolean(stock.grossMarginOk),
-    netProfitMarginOk: Boolean(stock.netProfitMarginOk),
-    assetLiabilityRatioOk: Boolean(stock.assetLiabilityRatioOk),
-    riskRewardOk: Boolean(stock.riskRewardOk),
+    revenueGrowthOk: Boolean(stock.revenueGrowthOk),
+    deductedNetProfitGrowthOk: Boolean(stock.deductedNetProfitGrowthOk),
+    grossMarginChangeOk: Boolean(stock.grossMarginChangeOk),
+    roicOk: Boolean(stock.roicOk),
+    operatingCashFlowPositiveOk: Boolean(stock.operatingCashFlowPositiveOk),
+    riskRewardOk,
+    volumePriceConfirmed: Boolean(stock.volumePriceConfirmed),
     turnoverRate: stock.turnoverRate,
     turnoverDirection: stock.turnoverDirection,
     weeklyCloseAboveEma20Ok: Boolean(stock.weeklyCloseAboveEma20Ok),
 
-    marketBackground: stock.marketBackground || legacyStrategy.marketBackground,
-    positionPhase: stock.positionPhase || legacyStrategy.positionPhase,
-    concretePattern: stock.concretePattern || legacyStrategy.concretePattern,
-    strategyDecision: stock.strategyDecision || strategyOutput.decision,
-    entryType: stock.entryType || strategyOutput.entryType,
-    strategyNote: stock.strategyNote || strategyOutput.note,
+    marketBackground: legacyStrategy.marketBackground,
+    tradingScenario: legacyStrategy.tradingScenario,
+    entryTrigger: legacyStrategy.entryTrigger,
+    strategyDecision: strategyOutput.decision,
+    entryType: strategyOutput.entryType,
+    strategyNote: strategyOutput.note,
 
     reviewDecision: stock.reviewDecision || 'approved',
     decisionReason: stock.decisionReason?.trim() || '',

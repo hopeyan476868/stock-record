@@ -8,7 +8,7 @@ import {
   getStrategySummary,
   DECISION_LABELS,
 } from '@/utils/buyStrategyEngine';
-import type { MarketBackground, PositionPhase, ConcretePattern } from '@/utils/buyStrategyEngine';
+import type { MarketBackground, TradingScenario, EntryTrigger } from '@/utils/buyStrategyEngine';
 
 const props = defineProps<{
   open: boolean;
@@ -38,11 +38,11 @@ const form = ref({
   buyDate: nowLocalDateTime(),
   emotionTag: '理性' as const,
   // 基本面检查
-  parentNetProfitGrowthOk: false,
-  grossMarginOk: false,
-  netProfitMarginOk: false,
-  assetLiabilityRatioOk: false,
-  riskRewardOk: false,
+  revenueGrowthOk: false,
+  deductedNetProfitGrowthOk: false,
+  grossMarginChangeOk: false,
+  roicOk: false,
+  operatingCashFlowPositiveOk: false,
   // 换手率
   turnoverRate: undefined as number | undefined,
   turnoverDirection: undefined as TurnoverDirection | undefined,
@@ -50,9 +50,10 @@ const form = ref({
   // 周线
   weeklyCloseAboveEma20Ok: false,
   // 策略（三级联动）
-  marketBackground: 'BULL_TREND' as MarketBackground,
-  positionPhase: 'PULLBACK' as PositionPhase,
-  concretePattern: 'SHALLOW_PULLBACK' as ConcretePattern,
+  marketBackground: 'STRONG_UP' as MarketBackground,
+  tradingScenario: 'SHALLOW_PULLBACK' as TradingScenario,
+  entryTrigger: 'H1_CONFIRM' as EntryTrigger,
+  volumePriceConfirmed: false,
   entryType: '',
   // 交易计划
   stopLossPrice: 0,
@@ -77,18 +78,19 @@ watch(() => props.open, (isOpen) => {
       buyPrice: 0,
       buyDate: nowLocalDateTime(),
       emotionTag: '理性',
-      parentNetProfitGrowthOk: false,
-      grossMarginOk: false,
-      netProfitMarginOk: false,
-      assetLiabilityRatioOk: false,
-      riskRewardOk: false,
+      revenueGrowthOk: false,
+      deductedNetProfitGrowthOk: false,
+      grossMarginChangeOk: false,
+      roicOk: false,
+      operatingCashFlowPositiveOk: false,
       turnoverRate: undefined,
       turnoverDirection: undefined,
       turnoverConfirm: false,
       weeklyCloseAboveEma20Ok: false,
-      marketBackground: 'BULL_TREND',
-      positionPhase: 'PULLBACK',
-      concretePattern: 'SHALLOW_PULLBACK',
+      marketBackground: 'STRONG_UP',
+      tradingScenario: 'SHALLOW_PULLBACK',
+      entryTrigger: 'H1_CONFIRM',
+      volumePriceConfirmed: false,
       entryType: '',
       stopLossPrice: 0,
       targetPrice: 0,
@@ -100,8 +102,9 @@ watch(() => props.open, (isOpen) => {
 
 const strategyInput = computed(() => ({
   marketBackground: form.value.marketBackground,
-  positionPhase: form.value.positionPhase,
-  concretePattern: form.value.concretePattern,
+  tradingScenario: form.value.tradingScenario,
+  entryTrigger: form.value.entryTrigger,
+  volumePriceConfirmed: form.value.volumePriceConfirmed,
 }));
 const strategyOutput = computed(() => evaluateBuyStrategy(strategyInput.value));
 const strategySummary = computed(() => getStrategySummary(strategyInput.value, strategyOutput.value));
@@ -110,18 +113,38 @@ const isStrategyBlocked = computed(() =>
   strategyOutput.value.decision === 'DO_NOT_BUY' || strategyOutput.value.decision === 'PASS'
 );
 
+const riskRewardRatio = computed(() => {
+  const trigger = Number(form.value.triggerPrice || 0);
+  const stop = Number(form.value.stopLossPrice || 0);
+  const target = Number(form.value.targetPrice || 0);
+  if (!(stop < trigger && trigger < target)) return null;
+  return (target - trigger) / (trigger - stop);
+});
+const riskRewardOk = computed(() => (riskRewardRatio.value || 0) >= 2);
+const finalTradeDecision = computed(() => {
+  if (strategyOutput.value.decision === 'WATCH') return { label: '观察', tone: 'border-amber-200 bg-amber-50 text-amber-700' };
+  if (strategyOutput.value.decision === 'DO_NOT_BUY' || strategyOutput.value.decision === 'PASS') {
+    return { label: '不买', tone: 'border-red-200 bg-red-50 text-red-700' };
+  }
+  if (!riskRewardOk.value) return { label: '风控不通过', tone: 'border-red-200 bg-red-50 text-red-700' };
+  return { label: '可买', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700' };
+});
+
 const sopPassed = computed(() => {
-  // 基本面四项全过
+  // 基本面五项全过
   const fundamentals = Boolean(
-    form.value.parentNetProfitGrowthOk &&
-    form.value.grossMarginOk &&
-    form.value.netProfitMarginOk &&
-    form.value.assetLiabilityRatioOk
+    form.value.revenueGrowthOk &&
+    form.value.deductedNetProfitGrowthOk &&
+    form.value.grossMarginChangeOk &&
+    form.value.roicOk &&
+    form.value.operatingCashFlowPositiveOk
   );
   // 盈亏比
-  const reward = form.value.riskRewardOk;
+  const reward = riskRewardOk.value;
   // 周线趋势
-  const trend = form.value.weeklyCloseAboveEma20Ok;
+  const trend = form.value.marketBackground === 'STRONG_UP' || form.value.marketBackground === 'NORMAL_UP'
+    ? form.value.weeklyCloseAboveEma20Ok
+    : true;
   // 换手率检查
   const rate = form.value.turnoverRate;
   let turnoverOk = false;
@@ -135,7 +158,7 @@ const sopPassed = computed(() => {
     turnoverOk = false;
   }
   // 策略未被拦截
-  const strategyOk = !isStrategyBlocked.value;
+  const strategyOk = strategyOutput.value.decision === 'BUY';
   // 三价齐全
   const pricesOk = Number(form.value.triggerPrice) > 0 && Number(form.value.targetPrice) > 0 && Number(form.value.stopLossPrice) > 0;
 
@@ -175,24 +198,26 @@ function validate(): boolean {
     buyDate: form.value.buyDate,
     buyReason: strategySummary.value,
     emotionTag: form.value.emotionTag,
-    parentNetProfitGrowthOk: form.value.parentNetProfitGrowthOk,
-    grossMarginOk: form.value.grossMarginOk,
-    netProfitMarginOk: form.value.netProfitMarginOk,
-    assetLiabilityRatioOk: form.value.assetLiabilityRatioOk,
-    riskRewardOk: form.value.riskRewardOk,
+    revenueGrowthOk: form.value.revenueGrowthOk,
+    deductedNetProfitGrowthOk: form.value.deductedNetProfitGrowthOk,
+    grossMarginChangeOk: form.value.grossMarginChangeOk,
+    roicOk: form.value.roicOk,
+    operatingCashFlowPositiveOk: form.value.operatingCashFlowPositiveOk,
+    riskRewardOk: riskRewardOk.value,
     turnoverRate: form.value.turnoverRate,
     turnoverDirection: form.value.turnoverDirection,
     weeklyCloseAboveEma20Ok: form.value.weeklyCloseAboveEma20Ok,
     marketBackground: form.value.marketBackground,
-    positionPhase: form.value.positionPhase,
-    concretePattern: form.value.concretePattern,
+    tradingScenario: form.value.tradingScenario,
+    entryTrigger: form.value.entryTrigger,
+    volumePriceConfirmed: form.value.volumePriceConfirmed,
     strategyDecision: strategyOutput.value.decision,
     entryType: strategyOutput.value.entryType,
     strategyNote: strategyOutput.value.note,
     stopLossPrice: Number(form.value.stopLossPrice || 0),
     targetPrice: Number(form.value.targetPrice || 0),
     takeProfitPrice: Number(form.value.targetPrice || 0),
-    reviewDecision: 'approved',
+    reviewDecision: sopPassed.value ? 'approved' : 'rejected',
     decisionReason: form.value.decisionReason.trim(),
   };
 
@@ -221,6 +246,8 @@ function handleSubmit(force = false) {
     strategyDecision: strategyOutput.value.decision,
     entryType: strategyOutput.value.entryType,
     strategyNote: strategyOutput.value.note,
+    riskRewardOk: riskRewardOk.value,
+    reviewDecision: sopPassed.value ? 'approved' : 'rejected',
     buyPrice: Number(form.value.buyPrice),
     buyQuantity: form.value.buyQuantity ? Number(form.value.buyQuantity) : undefined,
     triggerPrice: Number(form.value.triggerPrice || 0),
@@ -292,28 +319,28 @@ function handleClose() {
                 <div class="mb-4 text-sm font-semibold text-slate-900">系统预设检查项</div>
                 <div class="grid gap-3 md:grid-cols-4">
                   <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
-                    <input v-model="form.parentNetProfitGrowthOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                    <span class="text-sm text-slate-700">净利润同比 ≥ 20%</span>
+                    <input v-model="form.revenueGrowthOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <span class="text-sm text-slate-700">营业总收入同比 ≥ 15%</span>
                   </label>
                   <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
-                    <input v-model="form.grossMarginOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                    <span class="text-sm text-slate-700">毛利率 ≥ 30%</span>
+                    <input v-model="form.deductedNetProfitGrowthOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <span class="text-sm text-slate-700">扣非净利润同比 ≥ 15%</span>
                   </label>
                   <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
-                    <input v-model="form.netProfitMarginOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                    <span class="text-sm text-slate-700">净利率 > 5%</span>
+                    <input v-model="form.grossMarginChangeOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <span class="text-sm text-slate-700">毛利率同比 ≥ -3个百分点</span>
                   </label>
                   <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
-                    <input v-model="form.assetLiabilityRatioOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                    <span class="text-sm text-slate-700">资产负债率 ≤ 60%</span>
+                    <input v-model="form.roicOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <span class="text-sm text-slate-700">ROIC（TTM）≥ 8%</span>
                   </label>
                   <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
-                    <input v-model="form.riskRewardOk" type="checkbox" class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                    <span class="text-sm font-semibold text-slate-700">盈亏比 ≥ 2</span>
+                    <input v-model="form.operatingCashFlowPositiveOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <span class="text-sm text-slate-700">经营现金流 &gt; 0</span>
                   </label>
                   <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 cursor-pointer">
                     <input v-model="form.weeklyCloseAboveEma20Ok" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                    <span class="text-sm text-slate-700">周线收盘 > EMA20</span>
+                    <span class="text-sm text-slate-700">周线收盘 &gt; EMA20（上涨环境要求）</span>
                   </label>
                   <!-- 换手率 -->
                   <div class="md:col-span-2 rounded-2xl border border-slate-200">
@@ -349,8 +376,9 @@ function handleClose() {
               <!-- 交易策略 -->
               <BuyStrategyPanel
                 v-model:market-background="form.marketBackground"
-                v-model:position-phase="form.positionPhase"
-                v-model:concrete-pattern="form.concretePattern"
+                v-model:trading-scenario="form.tradingScenario"
+                v-model:entry-trigger="form.entryTrigger"
+                v-model:volume-price-confirmed="form.volumePriceConfirmed"
                 v-model:entry-type="form.entryType"
               />
 
@@ -380,6 +408,17 @@ function handleClose() {
                     目标价
                     <input v-model.number="form.targetPrice" type="number" min="0" step="0.01" class="input-field mt-2 number-font" />
                   </label>
+                  <div class="flex items-center rounded-lg border px-4 py-3 md:col-span-1" :class="riskRewardOk ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'">
+                    <div>
+                      <div class="text-xs">系统计算盈亏比</div>
+                      <div class="mt-1 text-sm font-bold number-font">{{ riskRewardRatio == null ? '请填写有效三价' : `1 : ${riskRewardRatio.toFixed(2)}` }}</div>
+                      <div class="mt-1 text-xs">要求 ≥ 1 : 2</div>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between rounded-lg border px-4 py-3 md:col-span-4" :class="finalTradeDecision.tone">
+                    <span class="text-sm font-semibold">最终结论</span>
+                    <strong class="text-sm">{{ finalTradeDecision.label }}</strong>
+                  </div>
                 </div>
               </section>
 

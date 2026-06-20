@@ -1,60 +1,46 @@
-// ==============================
-// 三层价格行为交易策略引擎
-// ==============================
-// Level 1: 市场背景（趋势方向）
-// Level 2: 形态位置（价格在背景中的阶段）
-// Level 3: 具体形态（K 线级别的具体结构）
-// 系统自动推导：风险提示 + 入场方式 + 最终决策
-// ==============================
+// Price-action decision model: environment -> scenario -> trigger -> execution.
 
-// --- Level 1 ---
-export type MarketBackground = 'BULL_TREND' | 'BEAR_TREND' | 'TRADING_RANGE';
+export type MarketBackground = 'STRONG_UP' | 'NORMAL_UP' | 'TRADING_RANGE' | 'DOWN_TREND' | 'UNCLEAR';
 
-// --- Level 2 ---
-// 上涨趋势中的位置
-export type BullPosition = 'PULLBACK' | 'CONSOLIDATION' | 'ACCELERATION';
-// 下降趋势中的位置
-export type BearPosition = 'BOUNCE' | 'REVERSAL_TRY';
-// 区间中的位置
-export type RangePosition = 'LOWER_EDGE' | 'MIDDLE' | 'UPPER_EDGE' | 'IN_RANGE_CONSOLIDATION';
+export type TradingScenario =
+  | 'SHALLOW_PULLBACK'
+  | 'TWO_LEG_PULLBACK'
+  | 'PLATFORM_CONSOLIDATION'
+  | 'FIRST_BREAKOUT_RETEST'
+  | 'DEEP_PULLBACK_DOUBLE_BOTTOM'
+  | 'DEEP_PULLBACK_BREAK_LH_RETEST'
+  | 'OVERHEATED'
+  | 'RANGE_LOWER_DOUBLE_BOTTOM'
+  | 'RANGE_LOWER_THREE_PUSH'
+  | 'RANGE_LOWER_BULL_ENGULF'
+  | 'RANGE_FAILED_BREAKDOWN_ZONE'
+  | 'RANGE_UPPER_TEST'
+  | 'RANGE_UPPER_RETEST'
+  | 'RANGE_MIDDLE'
+  | 'DOWN_THREE_PUSH_SUPPORT'
+  | 'DOWN_BREAK_LH_FIRST_PULLBACK'
+  | 'DOWN_BOUNCE_RESISTANCE'
+  | 'NO_SCENARIO';
 
-export type PositionPhase = BullPosition | BearPosition | RangePosition;
-
-// --- Level 3 ---
-// 上涨 + 回调中
-export type BullPullbackPattern = 'SHALLOW_PULLBACK' | 'EMA21_TOUCH' | 'CHANNEL_PULLBACK' | 'DOUBLE_BOTTOM' | 'DEEP_PULLBACK_HL_INTACT';
-// 上涨 + 中继整理
-export type BullConsolidationPattern = 'HORIZONTAL_PLATFORM' | 'TRIANGLE_CONTRACTION' | 'CUP_HANDLE' | 'WEDGE';
-// 下降 + 反弹中
-export type BearBouncePattern = 'BOUNCE_TO_RESISTANCE';
-// 下降 + 反转试探
-export type BearReversalPattern = 'REVERSAL_BREAKOUT_RETEST' | 'DOUBLE_BOTTOM_CONFIRM';
-// 区间 + 下沿
-export type RangeLowerPattern = 'DOUBLE_BOTTOM' | 'FAILED_BREAKDOWN_RECLAIM' | 'BULL_ENGULF_LOWER_EDGE';
-// 区间 + 上沿
-export type RangeUpperPattern = 'VALID_BREAKOUT' | 'BREAKOUT_PULLBACK';
-// 区间 + 整理
-export type RangeConsolidationPattern = 'HORIZONTAL_PLATFORM' | 'TRIANGLE_CONTRACTION';
-
-export type ConcretePattern =
-  | BullPullbackPattern | BullConsolidationPattern
-  | BearBouncePattern | BearReversalPattern
-  | RangeLowerPattern | RangeUpperPattern | RangeConsolidationPattern
+export type EntryTrigger =
+  | 'H1_CONFIRM'
+  | 'H2_CONFIRM'
+  | 'BULL_ENGULF_HIGH_BREAK'
+  | 'VOLUME_BREAKOUT'
+  | 'RETEST_TURN_STRONG'
+  | 'FAILED_BREAKDOWN_CONFIRM'
+  | 'NECKLINE_BREAK'
   | 'NONE';
 
-// --- System derived outputs ---
 export type RiskHint = 'none' | 'overheating' | 'divergence' | 'invalidated';
 export type StrategyDecision = 'BUY' | 'WATCH' | 'DO_NOT_BUY' | 'PASS';
-export type EntryType =
-  | 'H1' | 'H2' | 'PLATFORM_BREAKOUT' | 'BREAKOUT_PULLBACK' | 'CHANNEL_PULLBACK'
-  | 'TRIANGLE_BREAKOUT' | 'CUP_HANDLE_BREAKOUT' | 'DOUBLE_BOTTOM_CONFIRMATION'
-  | 'FAILED_BREAKDOWN_RECLAIM' | 'EFFECTIVE_BREAKOUT' | 'DIRECTIONAL_BREAKOUT'
-  | 'REVERSAL_BREAKOUT_PULLBACK' | 'LOWER_EDGE_BULL_ENGULF' | 'NONE';
+export type EntryType = EntryTrigger;
 
 export interface StrategyInput {
   marketBackground: MarketBackground;
-  positionPhase: PositionPhase;
-  concretePattern: ConcretePattern;
+  tradingScenario: TradingScenario;
+  entryTrigger: EntryTrigger;
+  volumePriceConfirmed?: boolean;
 }
 
 export interface StrategyOutput {
@@ -63,313 +49,216 @@ export interface StrategyOutput {
   entryType: EntryType;
   entryOptions: EntryType[];
   note: string;
+  stopLossGuide: string;
+  targetGuide: string;
+  volumeGuide: string;
 }
 
-// ==============================
-// Labels
-// ==============================
+type Option<T> = { value: T; label: string };
+
 export const MARKET_BACKGROUND_LABELS: Record<MarketBackground, string> = {
-  BULL_TREND: '上涨趋势',
-  BEAR_TREND: '下降趋势',
-  TRADING_RANGE: '区间震荡',
-};
-export const MARKET_BACKGROUND_OPTIONS: Array<{ value: MarketBackground; label: string }> = [
-  { value: 'BULL_TREND', label: '上涨趋势' },
-  { value: 'BEAR_TREND', label: '下降趋势' },
-  { value: 'TRADING_RANGE', label: '区间震荡' },
-];
-
-// Position Phase labels (depends on background)
-export const BULL_POSITIONS: Array<{ value: BullPosition; label: string }> = [
-  { value: 'PULLBACK', label: '回调中' },
-  { value: 'CONSOLIDATION', label: '中继整理' },
-  { value: 'ACCELERATION', label: '高位加速' },
-];
-export const BEAR_POSITIONS: Array<{ value: BearPosition; label: string }> = [
-  { value: 'BOUNCE', label: '反弹中' },
-  { value: 'REVERSAL_TRY', label: '反转试探' },
-];
-export const RANGE_POSITIONS: Array<{ value: RangePosition; label: string }> = [
-  { value: 'LOWER_EDGE', label: '下沿' },
-  { value: 'MIDDLE', label: '中部' },
-  { value: 'UPPER_EDGE', label: '上沿' },
-  { value: 'IN_RANGE_CONSOLIDATION', label: '区间内整理' },
-];
-export const POSITION_PHASE_LABELS: Record<PositionPhase, string> = {
-  PULLBACK: '回调中', CONSOLIDATION: '中继整理', ACCELERATION: '高位加速',
-  BOUNCE: '反弹中', REVERSAL_TRY: '反转试探',
-  LOWER_EDGE: '下沿', MIDDLE: '中部', UPPER_EDGE: '上沿', IN_RANGE_CONSOLIDATION: '区间内整理',
+  STRONG_UP: '强势上涨',
+  NORMAL_UP: '普通上涨',
+  TRADING_RANGE: '震荡区间',
+  DOWN_TREND: '下降趋势',
+  UNCLEAR: '结构不清',
 };
 
-// Phase descriptions shown below the dropdown
-export const PHASE_DESCRIPTIONS: Record<PositionPhase, string> = {
-  PULLBACK: '价格在上涨趋势中暂时回落，HL+HH未被破坏，等待回调结束信号',
-  CONSOLIDATION: '价格上涨后窄幅横盘，K线重叠密集，在等突破方向',
-  ACCELERATION: '连续大阳线，远离EMA21，风险收益比变差，只做持仓管理',
-  BOUNCE: '价格在下降趋势中暂时反弹，不改变LH+LL结构',
-  REVERSAL_TRY: '价格突破关键压力位或形成底部结构，可能趋势扭转',
-  LOWER_EDGE: '价格靠近区间下沿支撑位，等待确认信号',
-  MIDDLE: '价格在区间中部，不上不下没有交易优势',
-  UPPER_EDGE: '价格靠近区间上沿压力位，不追，等有效突破',
-  IN_RANGE_CONSOLIDATION: '价格在区间内部形成中继形态，等方向突破',
+export const MARKET_BACKGROUND_OPTIONS: Option<MarketBackground>[] = Object.entries(MARKET_BACKGROUND_LABELS)
+  .map(([value, label]) => ({ value: value as MarketBackground, label }));
+
+const SCENARIO_OPTIONS: Record<MarketBackground, Option<TradingScenario>[]> = {
+  STRONG_UP: [
+    { value: 'SHALLOW_PULLBACK', label: '浅回调延续' },
+    { value: 'PLATFORM_CONSOLIDATION', label: '平台整理' },
+    { value: 'FIRST_BREAKOUT_RETEST', label: '突破后首次回踩' },
+    { value: 'OVERHEATED', label: '高位过热（不买）' },
+  ],
+  NORMAL_UP: [
+    { value: 'TWO_LEG_PULLBACK', label: '两段式正常回调' },
+    { value: 'PLATFORM_CONSOLIDATION', label: '平台整理' },
+    { value: 'FIRST_BREAKOUT_RETEST', label: '突破后首次回踩' },
+    { value: 'DEEP_PULLBACK_DOUBLE_BOTTOM', label: '深回调后双底（关键HL未破）' },
+    { value: 'DEEP_PULLBACK_BREAK_LH_RETEST', label: '深回调突破次级LH后首次回踩' },
+    { value: 'OVERHEATED', label: '高位过热（不买）' },
+  ],
+  TRADING_RANGE: [
+    { value: 'RANGE_LOWER_DOUBLE_BOTTOM', label: '下沿双底' },
+    { value: 'RANGE_LOWER_THREE_PUSH', label: '下沿三推衰竭' },
+    { value: 'RANGE_LOWER_BULL_ENGULF', label: '下沿强阳反包' },
+    { value: 'RANGE_FAILED_BREAKDOWN_ZONE', label: '下沿假跌破区' },
+    { value: 'RANGE_UPPER_TEST', label: '区间上沿测试' },
+    { value: 'RANGE_UPPER_RETEST', label: '突破上沿后的回踩区' },
+    { value: 'RANGE_MIDDLE', label: '区间中部（不买）' },
+  ],
+  DOWN_TREND: [
+    { value: 'DOWN_THREE_PUSH_SUPPORT', label: '三推衰竭＋大级别支撑' },
+    { value: 'DOWN_BREAK_LH_FIRST_PULLBACK', label: '突破前LH后的首次回调' },
+    { value: 'DOWN_BOUNCE_RESISTANCE', label: '普通反弹至压力位（不买）' },
+  ],
+  UNCLEAR: [{ value: 'NO_SCENARIO', label: '无交易场景（放弃）' }],
 };
 
-// Concrete Pattern labels (depends on position phase)
-export const PULLBACK_PATTERNS: Array<{ value: BullPullbackPattern; label: string }> = [
-  { value: 'SHALLOW_PULLBACK', label: '浅回调（EMA5附近）' },
-  { value: 'EMA21_TOUCH', label: 'EMA21回踩' },
-  { value: 'CHANNEL_PULLBACK', label: '通道下轨' },
-  { value: 'DOUBLE_BOTTOM', label: '双底' },
-  { value: 'DEEP_PULLBACK_HL_INTACT', label: '深回调（未破HL）' },
-];
-export const CONSOLIDATION_PATTERNS: Array<{ value: BullConsolidationPattern; label: string }> = [
-  { value: 'HORIZONTAL_PLATFORM', label: '水平平台' },
-  { value: 'TRIANGLE_CONTRACTION', label: '三角收敛' },
-  { value: 'CUP_HANDLE', label: '杯柄' },
-  { value: 'WEDGE', label: '楔形' },
-];
-export const BOUNCE_PATTERNS: Array<{ value: BearBouncePattern; label: string }> = [
-  { value: 'BOUNCE_TO_RESISTANCE', label: '反弹至压力位' },
-];
-export const REVERSAL_PATTERNS: Array<{ value: BearReversalPattern; label: string }> = [
-  { value: 'REVERSAL_BREAKOUT_RETEST', label: '反转突破后回踩' },
-  { value: 'DOUBLE_BOTTOM_CONFIRM', label: '双底确认' },
-];
-export const LOWER_PATTERNS: Array<{ value: RangeLowerPattern; label: string }> = [
-  { value: 'DOUBLE_BOTTOM', label: '双底' },
-  { value: 'FAILED_BREAKDOWN_RECLAIM', label: '假跌破收回' },
-  { value: 'BULL_ENGULF_LOWER_EDGE', label: '下沿阳线反包' },
-];
-export const UPPER_PATTERNS: Array<{ value: RangeUpperPattern; label: string }> = [
-  { value: 'VALID_BREAKOUT', label: '有效突破' },
-  { value: 'BREAKOUT_PULLBACK', label: '突破回踩' },
-];
-export const RANGE_CONSOLIDATION_PATTERNS: Array<{ value: RangeConsolidationPattern; label: string }> = [
-  { value: 'HORIZONTAL_PLATFORM', label: '水平平台' },
-  { value: 'TRIANGLE_CONTRACTION', label: '三角收敛' },
-];
-export const CONCRETE_PATTERN_LABELS: Record<ConcretePattern, string> = {
-  SHALLOW_PULLBACK: '浅回调', EMA21_TOUCH: 'EMA21回踩', CHANNEL_PULLBACK: '通道下轨',
-  DOUBLE_BOTTOM: '双底', DEEP_PULLBACK_HL_INTACT: '深回调（未破HL）',
-  HORIZONTAL_PLATFORM: '水平平台', TRIANGLE_CONTRACTION: '三角收敛', CUP_HANDLE: '杯柄', WEDGE: '楔形',
-  BOUNCE_TO_RESISTANCE: '反弹至压力位',
-  REVERSAL_BREAKOUT_RETEST: '反转突破后回踩', DOUBLE_BOTTOM_CONFIRM: '双底确认',
-  FAILED_BREAKDOWN_RECLAIM: '假跌破收回', BULL_ENGULF_LOWER_EDGE: '下沿阳线反包',
-  VALID_BREAKOUT: '有效突破', BREAKOUT_PULLBACK: '突破回踩',
-  NONE: '无合适形态',
+export const TRADING_SCENARIO_LABELS = Object.values(SCENARIO_OPTIONS)
+  .flat()
+  .reduce((labels, item) => ({ ...labels, [item.value]: item.label }), {} as Record<TradingScenario, string>);
+
+export const SCENARIO_DESCRIPTIONS: Record<TradingScenario, string> = {
+  SHALLOW_PULLBACK: '强趋势中的短促缩量回调，关键结构未破。',
+  TWO_LEG_PULLBACK: '普通上涨完成两段回调，禁止H1，只等待H2确认。',
+  PLATFORM_CONSOLIDATION: '趋势中的横向压缩，当前仍在平台内，等待上沿放量突破。',
+  FIRST_BREAKOUT_RETEST: '已经突破关键位，正在第一次缩量回踩原压力位。',
+  DEEP_PULLBACK_DOUBLE_BOTTOM: '深回调接近关键HL后形成双底，两个底均未破坏关键HL。',
+  DEEP_PULLBACK_BREAK_LH_RETEST: '深回调后先突破回调内部的次级LH，再进行第一次缩量回踩。',
+  OVERHEATED: '连续拉升并远离均线，只做持仓管理。',
+  RANGE_LOWER_DOUBLE_BOTTOM: '两个低点位于区间下沿附近，等待突破颈线。',
+  RANGE_LOWER_THREE_PUSH: '区间下沿附近连续三次下推，空头动能逐步衰竭。',
+  RANGE_LOWER_BULL_ENGULF: '区间下沿出现有力度的阳线反包。',
+  RANGE_FAILED_BREAKDOWN_ZONE: '价格短暂跌破区间下沿，正在尝试收回关键位。',
+  RANGE_UPPER_TEST: '价格仍在区间内测试上沿，尚未完成有效突破。',
+  RANGE_UPPER_RETEST: '已经突破区间上沿，正在缩量回踩原上沿。',
+  RANGE_MIDDLE: '区间中部没有边界优势。',
+  DOWN_THREE_PUSH_SUPPORT: '下降趋势三次下推到大级别支撑，必须等待明确向上触发。',
+  DOWN_BREAK_LH_FIRST_PULLBACK: '先突破前一个关键LH，首次回调低点仍高于前LL，形成候选HL。',
+  DOWN_BOUNCE_RESISTANCE: '下降趋势中的普通反弹，仍受前LH或压力位压制。',
+  NO_SCENARIO: '没有清晰趋势、区间或可执行场景。',
 };
+
+export const ENTRY_TRIGGER_LABELS: Record<EntryTrigger, string> = {
+  H1_CONFIRM: 'H1确认',
+  H2_CONFIRM: 'H2确认',
+  BULL_ENGULF_HIGH_BREAK: '反包K高点突破',
+  VOLUME_BREAKOUT: '放量突破',
+  RETEST_TURN_STRONG: '回踩确认转强',
+  FAILED_BREAKDOWN_CONFIRM: '假跌破收回确认',
+  NECKLINE_BREAK: '双底局部颈线突破',
+  NONE: '无触发',
+};
+export const ENTRY_TYPE_LABELS = ENTRY_TRIGGER_LABELS;
+
 export const RISK_HINT_LABELS: Record<RiskHint, string> = {
-  none: '无明显风险',
-  overheating: '过热',
-  divergence: '分歧',
-  invalidated: '买点失效',
+  none: '无明显风险', overheating: '过热', divergence: '分歧', invalidated: '买点失效',
 };
 export const DECISION_LABELS: Record<StrategyDecision, string> = {
   BUY: '可买', WATCH: '观察', DO_NOT_BUY: '不买', PASS: '放弃',
 };
-export const ENTRY_TYPE_LABELS: Record<EntryType, string> = {
-  H1: 'H1', H2: 'H2', PLATFORM_BREAKOUT: '平台突破', BREAKOUT_PULLBACK: '突破回踩',
-  CHANNEL_PULLBACK: '通道回踩', TRIANGLE_BREAKOUT: '三角突破', CUP_HANDLE_BREAKOUT: '杯柄突破',
-  DOUBLE_BOTTOM_CONFIRMATION: '双底确认', FAILED_BREAKDOWN_RECLAIM: '假跌破收回',
-  EFFECTIVE_BREAKOUT: '有效突破', DIRECTIONAL_BREAKOUT: '方向突破',
-  REVERSAL_BREAKOUT_PULLBACK: '反转突破回踩', LOWER_EDGE_BULL_ENGULF: '下沿阳线反包', NONE: '无买点',
+export const STRATEGY_CONCLUSION_LABELS: Record<StrategyDecision, string> = {
+  BUY: '触发成立', WATCH: '等待', DO_NOT_BUY: '不买', PASS: '放弃',
 };
 
-// ==============================
-// Engine
-// ==============================
-const out = (decision: StrategyDecision, entryType: EntryType, riskHint: RiskHint, note: string, entryOptions?: EntryType[]): StrategyOutput => ({ decision, entryType, riskHint, entryOptions: entryOptions || [entryType], note });
-const noBuy = (note: string) => out('DO_NOT_BUY', 'NONE', 'none', note, ['NONE']);
-const watch = (entryType: EntryType, riskHint: RiskHint, note: string, entryOptions?: EntryType[]) => out('WATCH', entryType, riskHint, note, entryOptions || [entryType]);
+const TRIGGER_GUIDES: Record<EntryTrigger, Pick<StrategyOutput, 'stopLossGuide' | 'targetGuide' | 'volumeGuide'>> = {
+  H1_CONFIRM: {
+    stopLossGuide: '信号K线低点下方',
+    targetGuide: '前高或下一压力位',
+    volumeGuide: '回调缩量，突破信号K高点时不明显缩量或温和放量',
+  },
+  H2_CONFIRM: {
+    stopLossGuide: '第二次回调低点下方',
+    targetGuide: '前高、区间中轴或下一压力位',
+    volumeGuide: '两段回调总体缩量，确认突破时不明显缩量或温和放量',
+  },
+  BULL_ENGULF_HIGH_BREAK: {
+    stopLossGuide: '反包K线低点下方',
+    targetGuide: '最近压力位或区间中轴',
+    volumeGuide: '反包K实体覆盖前阴，突破其高点时成交量有效配合',
+  },
+  VOLUME_BREAKOUT: {
+    stopLossGuide: '平台或区间上沿下方',
+    targetGuide: '整理高度等幅目标或下一压力位',
+    volumeGuide: '收盘突破关键位，成交量 ≥ 20日均量150%',
+  },
+  RETEST_TURN_STRONG: {
+    stopLossGuide: '首次回踩低点下方',
+    targetGuide: '前高或突破结构等幅目标',
+    volumeGuide: '突破放量、回踩缩量、重新转强时量能恢复',
+  },
+  FAILED_BREAKDOWN_CONFIRM: {
+    stopLossGuide: '假跌破最低点下方',
+    targetGuide: '区间中轴，强势时看区间上沿',
+    volumeGuide: '快速收回下沿，并突破收回K高点',
+  },
+  NECKLINE_BREAK: {
+    stopLossGuide: '右底低点下方',
+    targetGuide: '双底高度等幅目标或下一压力位',
+    volumeGuide: '右底卖压减弱，突破两个底之间的局部反弹高点时成交量放大',
+  },
+  NONE: { stopLossGuide: '无', targetGuide: '无', volumeGuide: '无可执行触发' },
+};
+
+const ALLOWED_TRIGGERS: Record<TradingScenario, EntryTrigger[]> = {
+  SHALLOW_PULLBACK: ['H1_CONFIRM', 'H2_CONFIRM'],
+  TWO_LEG_PULLBACK: ['H2_CONFIRM'],
+  PLATFORM_CONSOLIDATION: ['VOLUME_BREAKOUT'],
+  FIRST_BREAKOUT_RETEST: ['RETEST_TURN_STRONG'],
+  DEEP_PULLBACK_DOUBLE_BOTTOM: ['NECKLINE_BREAK'],
+  DEEP_PULLBACK_BREAK_LH_RETEST: ['RETEST_TURN_STRONG'],
+  OVERHEATED: ['NONE'],
+  RANGE_LOWER_DOUBLE_BOTTOM: ['NECKLINE_BREAK'],
+  RANGE_LOWER_THREE_PUSH: ['H2_CONFIRM'],
+  RANGE_LOWER_BULL_ENGULF: ['BULL_ENGULF_HIGH_BREAK'],
+  RANGE_FAILED_BREAKDOWN_ZONE: ['FAILED_BREAKDOWN_CONFIRM'],
+  RANGE_UPPER_TEST: ['VOLUME_BREAKOUT'],
+  RANGE_UPPER_RETEST: ['RETEST_TURN_STRONG'],
+  RANGE_MIDDLE: ['NONE'],
+  DOWN_THREE_PUSH_SUPPORT: ['H2_CONFIRM'],
+  DOWN_BREAK_LH_FIRST_PULLBACK: ['RETEST_TURN_STRONG'],
+  DOWN_BOUNCE_RESISTANCE: ['NONE'],
+  NO_SCENARIO: ['NONE'],
+};
+
+function output(decision: StrategyDecision, input: StrategyInput, note: string, riskHint: RiskHint = 'none'): StrategyOutput {
+  return {
+    decision,
+    riskHint,
+    entryType: input.entryTrigger,
+    entryOptions: ALLOWED_TRIGGERS[input.tradingScenario],
+    note,
+    ...TRIGGER_GUIDES[input.entryTrigger],
+  };
+}
 
 export function evaluateBuyStrategy(input: StrategyInput): StrategyOutput {
-  const { marketBackground: bg, positionPhase: pos, concretePattern: pat } = input;
-
-  // ===================== BULL TREND =====================
-  if (bg === 'BULL_TREND') {
-    if (pos === 'ACCELERATION') {
-      return out('WATCH', 'NONE', 'overheating',
-        '高位加速：连续大阳线后远离 EMA21，不新开仓。已有持仓做止盈和移动止损管理。');
-    }
-
-    if (pos === 'PULLBACK') {
-      if (pat === 'SHALLOW_PULLBACK') {
-        return out('BUY', 'H1', 'none',
-          '强势上涨中的浅回调，H1 可用。止损设在信号 K 线低点，不扛单。'
-          + '【量价】回调缩量 > 放量，回调缩量更可靠；若放量回调，H1 降级为 H2。');
-      }
-      if (pat === 'EMA21_TOUCH') {
-        return out('BUY', 'H2', 'none',
-          'EMA21 附近获得支撑的 H2。H1 不参与，等二次确认。'
-          + '【量价】关注触碰 EMA21 当日的成交量：缩量触碰 + 小实体 K 线 = 有效支撑；放量下破 EMA21 = 支撑失效。');
-      }
-      if (pat === 'CHANNEL_PULLBACK') {
-        return out('BUY', 'CHANNEL_PULLBACK', 'none',
-          '窄上升通道下轨回调，通道低吸。止损通道下轨下方。'
-          + '【量价】通道内正常回调应缩量；触碰下轨时若出现放量长下影或阳线反包，确认有效性更高。');
-      }
-      if (pat === 'DOUBLE_BOTTOM') {
-        return out('BUY', 'DOUBLE_BOTTOM_CONFIRMATION', 'none',
-          '上涨趋势中的双底确认，说明回调结束。设第二个底下方止损。'
-          + '【量价】第二个底成交量应明显小于第一个底（卖压衰竭）；突破颈线时应放量确认。');
-      }
-      if (pat === 'DEEP_PULLBACK_HL_INTACT') {
-        return watch('NONE', 'divergence',
-          '深回调但最后一个 HL 未被破坏，上涨背景不变。但价格已跌穿 EMA21，不急于左侧抄底。'
-          + '等待重新站回 EMA21 或出现底部结构（双底/假破收回）后再入场。'
-          + '【量价】关注 HL 附近是否有放量止跌信号（长下影、阳线反包）；若持续缩量阴跌，HL 大概率守不住。');
-      }
-      return noBuy('回调中的具体形态不合法，请重新选择。');
-    }
-
-    if (pos === 'CONSOLIDATION') {
-      if (pat === 'HORIZONTAL_PLATFORM') {
-        return watch('PLATFORM_BREAKOUT', 'none',
-          '水平平台整理。不提前入场，等平台突破或突破回踩确认。'
-          + '【量价】突破日应明显放量（> 5日均量 1.5倍）；无量突破容易假突破。',
-          ['PLATFORM_BREAKOUT', 'BREAKOUT_PULLBACK']);
-      }
-      if (pat === 'TRIANGLE_CONTRACTION') {
-        return watch('TRIANGLE_BREAKOUT', 'none',
-          '三角收敛末端，等方向突破或突破回踩确认。不提前赌方向。'
-          + '【量价】三角收敛内应持续缩量；突破时放量确认方向。缩量突破不可信。',
-          ['TRIANGLE_BREAKOUT', 'BREAKOUT_PULLBACK']);
-      }
-      if (pat === 'CUP_HANDLE') {
-        return watch('CUP_HANDLE_BREAKOUT', 'none',
-          '杯柄整理形态。等杯柄突破或突破回踩确认。'
-          + '【量价】杯底应缩量、杯柄应缩量；突破杯柄上轨时应放量为佳。',
-          ['CUP_HANDLE_BREAKOUT', 'BREAKOUT_PULLBACK']);
-      }
-      if (pat === 'WEDGE') {
-        return watch('NONE', 'divergence',
-          '楔形整理：通常是动量衰竭信号。不急于入场，等向下突破或楔形转为平台再评估。'
-          + '【量价】上升楔形内部通常价涨量缩，是背离信号；向下突破往往伴随放量。');
-      }
-      return noBuy('整理形态不合法。');
-    }
+  const allowed = ALLOWED_TRIGGERS[input.tradingScenario] || ['NONE'];
+  if (input.marketBackground === 'UNCLEAR' || input.tradingScenario === 'NO_SCENARIO') {
+    return output('PASS', { ...input, entryTrigger: 'NONE' }, '结构不清，没有可执行场景，直接放弃。');
   }
-
-  // ===================== BEAR TREND =====================
-  if (bg === 'BEAR_TREND') {
-    if (pos === 'BOUNCE') {
-      return noBuy('下降趋势反弹不买。反弹不改变趋势，不接飞刀。');
-    }
-
-    if (pos === 'REVERSAL_TRY') {
-      if (pat === 'REVERSAL_BREAKOUT_RETEST') {
-        return watch('REVERSAL_BREAKOUT_PULLBACK', 'none',
-          '下降背景唯一例外：已出现反转突破（突破关键压力位），等回踩确认不破后再评估。'
-          + '确认标准：回踩不破突破 K 线低点或 EMA21。'
-          + '【量价】突破时应放量；回踩时应缩量。若回踩放量下破，反转失败。',
-          ['REVERSAL_BREAKOUT_PULLBACK']);
-      }
-      if (pat === 'DOUBLE_BOTTOM_CONFIRM') {
-        return watch('DOUBLE_BOTTOM_CONFIRMATION', 'none',
-          '双底确认是潜在趋势反转信号，但下降背景的胜率低于上涨背景。'
-          + '等右侧确认（突破颈线或回踩不破）后再评估。'
-          + '【量价】第二个底缩量优于放量；突破颈线时需放量确认。',
-          ['DOUBLE_BOTTOM_CONFIRMATION', 'BREAKOUT_PULLBACK']);
-      }
-      return noBuy('反转试探形态不合法。');
-    }
+  if (input.tradingScenario === 'OVERHEATED' || input.tradingScenario === 'RANGE_MIDDLE') {
+    return output('DO_NOT_BUY', { ...input, entryTrigger: 'NONE' }, '当前位置没有交易优势，不新开仓。', input.tradingScenario === 'OVERHEATED' ? 'overheating' : 'none');
   }
-
-  // ===================== TRADING RANGE =====================
-  if (bg === 'TRADING_RANGE') {
-    if (pos === 'MIDDLE') {
-      return noBuy('区间中部不买。不上不下没有优势，等价格靠近边界再评估。');
-    }
-
-    if (pos === 'LOWER_EDGE') {
-      if (pat === 'DOUBLE_BOTTOM') {
-        return watch('DOUBLE_BOTTOM_CONFIRMATION', 'none',
-          '区间底部出现双底。等右侧确认后再入场，不要提前赌双底。',
-          ['DOUBLE_BOTTOM_CONFIRMATION', 'FAILED_BREAKDOWN_RECLAIM']);
-      }
-      if (pat === 'FAILED_BREAKDOWN_RECLAIM') {
-        return watch('FAILED_BREAKDOWN_RECLAIM', 'none',
-          '假跌破区间下沿后快速收回，这是多头陷阱失效的信号。等收回确认。'
-          + '【量价】假跌破时应放量（恐慌盘出逃），收回时应缩量或出现阳线反包。',
-          ['FAILED_BREAKDOWN_RECLAIM', 'DOUBLE_BOTTOM_CONFIRMATION']);
-      }
-      if (pat === 'BULL_ENGULF_LOWER_EDGE') {
-        return out('BUY', 'LOWER_EDGE_BULL_ENGULF', 'none',
-          '区间底部阳线反包，短期多头占优。止损设反包 K 线低点。区间底部不追涨，低吸为主。'
-          + '【量价】反包 K 线应放量 > 前一根；放量越大，反包有效性越高。');
-      }
-      return noBuy('下沿形态不合法。');
-    }
-
-    if (pos === 'UPPER_EDGE') {
-      if (pat === 'VALID_BREAKOUT') {
-        return watch('EFFECTIVE_BREAKOUT', 'none',
-          '区间上方有效突破。不追，等突破后回踩确认不破再介入。'
-          + '【量价】有效突破应放量 > 区间均量 1.5 倍；若缩量突破，大概率假突破。',
-          ['EFFECTIVE_BREAKOUT', 'BREAKOUT_PULLBACK']);
-      }
-      if (pat === 'BREAKOUT_PULLBACK') {
-        return out('BUY', 'BREAKOUT_PULLBACK', 'none',
-          '突破后回踩原压力位不破，重新转强。这是区间突破的标准入场点。'
-          + '【量价】回踩日应缩量；再次上攻时需放量配合。');
-      }
-      return noBuy('上沿不追买，等有效突破信号。');
-    }
-
-    if (pos === 'IN_RANGE_CONSOLIDATION') {
-      if (pat === 'HORIZONTAL_PLATFORM') {
-        return watch('DIRECTIONAL_BREAKOUT', 'none',
-          '区间内窄幅平台整理，等方向突破确认。');
-      }
-      if (pat === 'TRIANGLE_CONTRACTION') {
-        return watch('DIRECTIONAL_BREAKOUT', 'none',
-          '区间内三角收敛，等方向选择。不提前押注。');
-      }
-      return noBuy('区间整理形态不合法。');
-    }
+  if (input.tradingScenario === 'DOWN_BOUNCE_RESISTANCE') {
+    return output('PASS', { ...input, entryTrigger: 'NONE' }, '下降趋势普通反弹至压力位，不买。');
   }
-
-  return noBuy('当前组合不合法，请重新选择。');
+  if (!allowed.includes(input.entryTrigger) || input.entryTrigger === 'NONE') {
+    return output('DO_NOT_BUY', { ...input, entryTrigger: 'NONE' }, '当前场景没有合法触发，继续等待。');
+  }
+  if (!input.volumePriceConfirmed) {
+    return output('WATCH', input, '场景存在，但触发对应的量价条件尚未确认。');
+  }
+  const counterTrend = input.marketBackground === 'DOWN_TREND';
+  return output('BUY', input, counterTrend
+    ? '下降趋势反转场景与触发成立；属于逆势早期交易，必须缩小仓位并严格止损。'
+    : '市场环境、交易场景、入场触发与量价条件一致；继续核对三价与盈亏比。',
+  );
 }
 
-// ==============================
-// Helpers
-// ==============================
-export function getPositionPhases(bg: MarketBackground): Array<{ value: PositionPhase; label: string }> {
-  if (bg === 'BULL_TREND') return BULL_POSITIONS;
-  if (bg === 'BEAR_TREND') return BEAR_POSITIONS;
-  return RANGE_POSITIONS;
+export function getTradingScenarios(background: MarketBackground): Option<TradingScenario>[] {
+  return SCENARIO_OPTIONS[background];
 }
 
-export function getConcretePatterns(pos: PositionPhase): Array<{ value: ConcretePattern; label: string }> {
-  const map: Record<PositionPhase, Array<{ value: ConcretePattern; label: string }>> = {
-    PULLBACK: PULLBACK_PATTERNS,
-    CONSOLIDATION: CONSOLIDATION_PATTERNS,
-    ACCELERATION: [],
-    BOUNCE: BOUNCE_PATTERNS,
-    REVERSAL_TRY: REVERSAL_PATTERNS,
-    LOWER_EDGE: LOWER_PATTERNS,
-    MIDDLE: [],
-    UPPER_EDGE: UPPER_PATTERNS,
-    IN_RANGE_CONSOLIDATION: RANGE_CONSOLIDATION_PATTERNS,
-  };
-  return map[pos] || [];
+export function getEntryTriggers(scenario: TradingScenario): Option<EntryTrigger>[] {
+  return ALLOWED_TRIGGERS[scenario].map(value => ({ value, label: ENTRY_TRIGGER_LABELS[value] }));
 }
 
 export function getStrategySummary(input: StrategyInput, strategy = evaluateBuyStrategy(input)): string {
-  const bg = MARKET_BACKGROUND_LABELS[input.marketBackground];
-  const phase = POSITION_PHASE_LABELS[input.positionPhase];
-  const pat = CONCRETE_PATTERN_LABELS[input.concretePattern];
-  const risk = RISK_HINT_LABELS[strategy.riskHint];
-  const dec = DECISION_LABELS[strategy.decision];
-  return `${bg} + ${phase} + ${pat} + ${risk} + ${dec}`;
+  return `${MARKET_BACKGROUND_LABELS[input.marketBackground]} + ${TRADING_SCENARIO_LABELS[input.tradingScenario]} + ${ENTRY_TRIGGER_LABELS[input.entryTrigger]} + ${STRATEGY_CONCLUSION_LABELS[strategy.decision]}`;
 }
 
-// ==============================
-// Legacy migration (backward compat for old localStorage records)
-// ==============================
 export interface LegacyStrategyFields {
   marketBackground?: string;
+  tradingScenario?: string;
+  entryTrigger?: string;
+  positionPhase?: string;
+  concretePattern?: string;
   currentStructure?: string;
   riskState?: string;
   entryType?: string;
@@ -384,51 +273,71 @@ export interface LegacyStrategyFields {
   legacyTrigger?: string;
 }
 
-function mapLegacyBackground(v: string | undefined): MarketBackground {
-  if (!v) return 'BULL_TREND';
-  if (v === 'DOWN' || v === 'BEAR_TREND' || v.includes('下降') || v === 'BEAR') return 'BEAR_TREND';
-  if (v === 'RANGE' || v === 'TRADING_RANGE' || v.includes('区间') || v.includes('震荡')) return 'TRADING_RANGE';
-  return 'BULL_TREND';
+function mapBackground(value?: string): MarketBackground {
+  if (value && value in MARKET_BACKGROUND_LABELS) return value as MarketBackground;
+  const text = value || '';
+  if (text === 'BEAR_TREND' || text.includes('下降') || text === 'DOWN') return 'DOWN_TREND';
+  if (text === 'TRADING_RANGE' || text.includes('区间') || text.includes('震荡')) return 'TRADING_RANGE';
+  if (text === 'TRANSITION' || text.includes('转换') || text.includes('不清')) return 'UNCLEAR';
+  if (text.includes('强') || text.includes('加速')) return 'STRONG_UP';
+  return 'NORMAL_UP';
 }
 
-function mapLegacyPhase(_bg: MarketBackground, input: LegacyStrategyFields): PositionPhase {
-  const pos = (input.priceLocation || input.buyStrategy || '').toLowerCase();
-  const state = (input.marketState || '').toLowerCase();
-  if (input.riskState === 'OVERHEATED' || state.includes('高位') || state.includes('加速')) return 'ACCELERATION';
-  if (pos.includes('平台') || pos.includes('整理') || pos.includes('杯柄') || pos.includes('三角')) {
-    if (_bg === 'TRADING_RANGE') return 'IN_RANGE_CONSOLIDATION';
-    return 'CONSOLIDATION';
+function defaultScenario(background: MarketBackground): TradingScenario {
+  if (background === 'STRONG_UP') return 'SHALLOW_PULLBACK';
+  if (background === 'NORMAL_UP') return 'TWO_LEG_PULLBACK';
+  if (background === 'TRADING_RANGE') return 'RANGE_LOWER_DOUBLE_BOTTOM';
+  if (background === 'DOWN_TREND') return 'DOWN_BOUNCE_RESISTANCE';
+  return 'NO_SCENARIO';
+}
+
+function mapScenario(background: MarketBackground, input: LegacyStrategyFields): TradingScenario {
+  if (input.tradingScenario && input.tradingScenario in TRADING_SCENARIO_LABELS) return input.tradingScenario as TradingScenario;
+  const text = `${input.positionPhase || ''}${input.currentStructure || ''}${input.priceLocation || ''}${input.buyStrategy || ''}${input.technicalPattern || ''}`;
+  if (text.includes('过热') || text.includes('ACCELERATION')) return 'OVERHEATED';
+  if (background === 'STRONG_UP') {
+    if (text.includes('平台') || text.includes('PLATFORM')) return 'PLATFORM_CONSOLIDATION';
+    if (text.includes('回踩') || text.includes('RETEST')) return 'FIRST_BREAKOUT_RETEST';
+    return 'SHALLOW_PULLBACK';
   }
-  if (state.includes('下沿') || pos.includes('下沿')) return 'LOWER_EDGE';
-  if (state.includes('上沿') || pos.includes('上沿')) return 'UPPER_EDGE';
-  if (state.includes('中部') || pos.includes('中部')) return 'MIDDLE';
-  if (_bg === 'BEAR_TREND') return 'REVERSAL_TRY';
-  return 'PULLBACK';
+  if (background === 'NORMAL_UP') {
+    if (text.includes('平台') || text.includes('PLATFORM')) return 'PLATFORM_CONSOLIDATION';
+    if (text.includes('回踩') || text.includes('RETEST')) return 'FIRST_BREAKOUT_RETEST';
+    if (text.includes('深') || text.includes('DEEP')) {
+      return text.includes('双底') ? 'DEEP_PULLBACK_DOUBLE_BOTTOM' : 'DEEP_PULLBACK_BREAK_LH_RETEST';
+    }
+    return 'TWO_LEG_PULLBACK';
+  }
+  if (background === 'TRADING_RANGE') {
+    if (text.includes('中部') || text.includes('MIDDLE')) return 'RANGE_MIDDLE';
+    if (text.includes('假') || text.includes('FAILED')) return 'RANGE_FAILED_BREAKDOWN_ZONE';
+    if (text.includes('回踩') || text.includes('RETEST')) return 'RANGE_UPPER_RETEST';
+    if (text.includes('上沿') || text.includes('UPPER')) return 'RANGE_UPPER_TEST';
+    if (text.includes('三推')) return 'RANGE_LOWER_THREE_PUSH';
+    if (text.includes('反包') || text.includes('ENGULF')) return 'RANGE_LOWER_BULL_ENGULF';
+    return 'RANGE_LOWER_DOUBLE_BOTTOM';
+  }
+  return defaultScenario(background);
 }
 
-function mapLegacyPattern(_bg: MarketBackground, _pos: PositionPhase, input: LegacyStrategyFields): ConcretePattern {
-  const pos = (input.priceLocation || input.buyStrategy || '').toLowerCase();
-  const pat = (input.technicalPattern || '').toLowerCase();
-  if (pos.includes('ema21') || pos.includes('ema20') || pos.includes('h2')) return 'EMA21_TOUCH';
-  if (pos.includes('浅') || pos.includes('h1') || pos.includes('小回调')) return 'SHALLOW_PULLBACK';
-  if (pos.includes('双底')) return 'DOUBLE_BOTTOM';
-  if (pos.includes('通道') || pos.includes('channel')) return 'CHANNEL_PULLBACK';
-  if (pat.includes('平台') || pos.includes('平台')) return 'HORIZONTAL_PLATFORM';
-  if (pat.includes('三角') || pos.includes('三角')) return 'TRIANGLE_CONTRACTION';
-  if (pat.includes('杯柄') || pos.includes('杯柄')) return 'CUP_HANDLE';
-  if (pos.includes('楔形') || pat.includes('楔形')) return 'WEDGE';
-  if (pos.includes('假破') || pos.includes('收回')) return 'FAILED_BREAKDOWN_RECLAIM';
-  if (pos.includes('反弹')) return 'BOUNCE_TO_RESISTANCE';
-  if (pos.includes('突破回踩') || pos.includes('回踩')) return 'BREAKOUT_PULLBACK';
-  if (pos.includes('突破')) return 'VALID_BREAKOUT';
-  if (pos.includes('反包')) return 'BULL_ENGULF_LOWER_EDGE';
-  if (_bg === 'BEAR_TREND') return 'REVERSAL_BREAKOUT_RETEST';
-  return 'SHALLOW_PULLBACK';
+function mapTrigger(scenario: TradingScenario, input: LegacyStrategyFields): EntryTrigger {
+  if (input.entryTrigger && input.entryTrigger in ENTRY_TRIGGER_LABELS) return input.entryTrigger as EntryTrigger;
+  const text = `${input.concretePattern || ''}${input.entryType || ''}${input.priceLocation || ''}${input.buyStrategy || ''}`.toLowerCase();
+  const allowed = ALLOWED_TRIGGERS[scenario];
+  let trigger: EntryTrigger = 'NONE';
+  if (text.includes('h2')) trigger = 'H2_CONFIRM';
+  else if (text.includes('h1')) trigger = 'H1_CONFIRM';
+  else if (text.includes('假') || text.includes('failed')) trigger = 'FAILED_BREAKDOWN_CONFIRM';
+  else if (text.includes('颈线') || text.includes('双底')) trigger = 'NECKLINE_BREAK';
+  else if (text.includes('反包') || text.includes('engulf')) trigger = 'BULL_ENGULF_HIGH_BREAK';
+  else if (text.includes('回踩') || text.includes('retest')) trigger = 'RETEST_TURN_STRONG';
+  else if (text.includes('突破') || text.includes('breakout')) trigger = 'VOLUME_BREAKOUT';
+  return allowed.includes(trigger) ? trigger : allowed[0];
 }
 
 export function migrateLegacyStrategy(stock: LegacyStrategyFields): StrategyInput {
-  const bg = mapLegacyBackground(stock.marketBackground || stock.trendJudgment || stock.marketStructure);
-  const phase = mapLegacyPhase(bg, stock);
-  const pattern = mapLegacyPattern(bg, phase, stock);
-  return { marketBackground: bg, positionPhase: phase, concretePattern: pattern };
+  const marketBackground = mapBackground(stock.marketBackground || stock.trendJudgment || stock.marketStructure);
+  const tradingScenario = mapScenario(marketBackground, stock);
+  const entryTrigger = mapTrigger(tradingScenario, stock);
+  return { marketBackground, tradingScenario, entryTrigger, volumePriceConfirmed: false };
 }

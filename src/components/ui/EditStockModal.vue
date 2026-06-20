@@ -32,17 +32,19 @@ const form = ref<EditableStockInput>({
   buyReason: '',
   buyPsychology: '',
   emotionTag: '理性',
-  parentNetProfitGrowthOk: false,
-  grossMarginOk: false,
-  netProfitMarginOk: false,
-  assetLiabilityRatioOk: false,
+  revenueGrowthOk: false,
+  deductedNetProfitGrowthOk: false,
+  grossMarginChangeOk: false,
+  roicOk: false,
+  operatingCashFlowPositiveOk: false,
   riskRewardOk: false,
   turnoverRate: undefined,
   turnoverDirection: undefined,
   weeklyCloseAboveEma20Ok: false,
-  marketBackground: 'BULL_TREND',
-  positionPhase: 'PULLBACK',
-  concretePattern: 'SHALLOW_PULLBACK',
+  marketBackground: 'STRONG_UP',
+  tradingScenario: 'SHALLOW_PULLBACK',
+  entryTrigger: 'H1_CONFIRM',
+  volumePriceConfirmed: false,
   entryType: '',
   reviewDecision: 'pending',
   decisionReason: '',
@@ -82,17 +84,19 @@ watch(() => props.open, (isOpen) => {
       buyReason: props.stock.buyReason,
       buyPsychology: props.stock.buyPsychology || '',
       emotionTag: props.stock.emotionTag || '理性',
-      parentNetProfitGrowthOk: Boolean(props.stock.parentNetProfitGrowthOk),
-      grossMarginOk: Boolean(props.stock.grossMarginOk),
-      netProfitMarginOk: Boolean(props.stock.netProfitMarginOk),
-      assetLiabilityRatioOk: Boolean(props.stock.assetLiabilityRatioOk),
+      revenueGrowthOk: Boolean(props.stock.revenueGrowthOk),
+      deductedNetProfitGrowthOk: Boolean(props.stock.deductedNetProfitGrowthOk),
+      grossMarginChangeOk: Boolean(props.stock.grossMarginChangeOk),
+      roicOk: Boolean(props.stock.roicOk),
+      operatingCashFlowPositiveOk: Boolean(props.stock.operatingCashFlowPositiveOk),
       riskRewardOk: Boolean(props.stock.riskRewardOk),
       turnoverRate: props.stock.turnoverRate,
       turnoverDirection: props.stock.turnoverDirection,
       weeklyCloseAboveEma20Ok: Boolean(props.stock.weeklyCloseAboveEma20Ok),
-      marketBackground: props.stock.marketBackground || migrated.marketBackground,
-      positionPhase: props.stock.positionPhase || migrated.positionPhase,
-      concretePattern: props.stock.concretePattern || migrated.concretePattern,
+      marketBackground: migrated.marketBackground,
+      tradingScenario: migrated.tradingScenario,
+      entryTrigger: migrated.entryTrigger,
+      volumePriceConfirmed: Boolean(props.stock.volumePriceConfirmed),
       entryType: props.stock.entryType || '',
       reviewDecision: props.stock.reviewDecision || (props.stock.status === 'holding' || props.stock.status === 'sold' ? 'approved' : 'pending'),
       decisionReason: props.stock.decisionReason || '',
@@ -128,12 +132,30 @@ const expectedReturn = computed(() => {
 const emotionOptions: EmotionTag[] = ['理性', '犹豫', 'FOMO'];
 const marketTagOptions: StockMarketTag[] = ['A股', '美股'];
 const strategyInput = computed(() => ({
-  marketBackground: form.value.marketBackground || 'BULL_TREND',
-  positionPhase: form.value.positionPhase || 'PULLBACK',
-  concretePattern: form.value.concretePattern || 'SHALLOW_PULLBACK',
+  marketBackground: form.value.marketBackground || 'STRONG_UP',
+  tradingScenario: form.value.tradingScenario || 'SHALLOW_PULLBACK',
+  entryTrigger: form.value.entryTrigger || 'H1_CONFIRM',
+  volumePriceConfirmed: Boolean(form.value.volumePriceConfirmed),
 }));
 const strategyOutput = computed(() => evaluateBuyStrategy(strategyInput.value));
 const strategySummary = computed(() => getStrategySummary(strategyInput.value, strategyOutput.value));
+
+const riskRewardRatio = computed(() => {
+  const trigger = Number(form.value.triggerPrice || 0);
+  const stop = Number(form.value.stopLossPrice || 0);
+  const target = Number(form.value.targetPrice || form.value.takeProfitPrice || 0);
+  if (!(stop < trigger && trigger < target)) return null;
+  return (target - trigger) / (trigger - stop);
+});
+const riskRewardOk = computed(() => (riskRewardRatio.value || 0) >= 2);
+const finalTradeDecision = computed(() => {
+  if (strategyOutput.value.decision === 'WATCH') return { label: '观察', tone: 'border-amber-200 bg-amber-50 text-amber-700' };
+  if (strategyOutput.value.decision === 'DO_NOT_BUY' || strategyOutput.value.decision === 'PASS') {
+    return { label: '不买', tone: 'border-red-200 bg-red-50 text-red-700' };
+  }
+  if (!riskRewardOk.value) return { label: '风控不通过', tone: 'border-red-200 bg-red-50 text-red-700' };
+  return { label: '可买', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700' };
+});
 
 const priceMatch = computed<{ label: string; check: SellExecutionCheck; tone: string }>(() => {
   if (!isSold.value) return { label: '未卖出', check: '部分执行', tone: 'text-slate-500' };
@@ -182,7 +204,8 @@ function handleSubmit() {
     strategyDecision: strategyOutput.value.decision,
     entryType: strategyOutput.value.entryType,
     strategyNote: strategyOutput.value.note,
-    reviewDecision: strategyOutput.value.decision === 'BUY' ? 'approved' : 'rejected',
+    riskRewardOk: riskRewardOk.value,
+    reviewDecision: strategyOutput.value.decision === 'BUY' && riskRewardOk.value ? 'approved' : 'rejected',
     triggerPrice: Number(form.value.triggerPrice || 0),
     targetPrice: Number(form.value.targetPrice || 0),
     takeProfitPrice: Number(form.value.targetPrice || 0),
@@ -295,24 +318,24 @@ function handleClose() {
                   <div class="mb-3 text-sm font-semibold text-slate-900">核查</div>
                   <div class="grid gap-3 md:grid-cols-2">
                     <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-3 cursor-pointer">
-                      <input v-model="form.parentNetProfitGrowthOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span class="text-sm text-slate-700">净利润同比 ≥ 20%</span>
+                      <input v-model="form.revenueGrowthOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span class="text-sm text-slate-700">营业总收入同比 ≥ 15%</span>
                     </label>
                     <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-3 cursor-pointer">
-                      <input v-model="form.grossMarginOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span class="text-sm text-slate-700">毛利率 ≥ 30%</span>
+                      <input v-model="form.deductedNetProfitGrowthOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span class="text-sm text-slate-700">扣非净利润同比 ≥ 15%</span>
                     </label>
                     <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-3 cursor-pointer">
-                      <input v-model="form.netProfitMarginOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span class="text-sm text-slate-700">净利率 > 5%</span>
+                      <input v-model="form.grossMarginChangeOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span class="text-sm text-slate-700">毛利率同比 ≥ -3个百分点</span>
                     </label>
                     <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-3 cursor-pointer">
-                      <input v-model="form.assetLiabilityRatioOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span class="text-sm text-slate-700">资产负债率 ≤ 60%</span>
+                      <input v-model="form.roicOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span class="text-sm text-slate-700">ROIC（TTM）≥ 8%</span>
                     </label>
                     <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-3 cursor-pointer">
-                      <input v-model="form.riskRewardOk" type="checkbox" class="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                      <span class="text-sm font-semibold text-slate-700">盈亏比 ≥ 2</span>
+                      <input v-model="form.operatingCashFlowPositiveOk" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span class="text-sm text-slate-700">经营现金流 &gt; 0</span>
                     </label>
                     <label class="flex items-center gap-3 rounded-xl bg-white px-3 py-3 cursor-pointer">
                       <input v-model="form.weeklyCloseAboveEma20Ok" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
@@ -340,8 +363,9 @@ function handleClose() {
                 <div class="col-span-2">
                   <BuyStrategyPanel
                     v-model:market-background="form.marketBackground"
-                    v-model:position-phase="form.positionPhase"
-                    v-model:concrete-pattern="form.concretePattern"
+                    v-model:trading-scenario="form.tradingScenario"
+                    v-model:entry-trigger="form.entryTrigger"
+                    v-model:volume-price-confirmed="form.volumePriceConfirmed"
                     v-model:entry-type="form.entryType"
                   />
                 </div>
@@ -365,6 +389,14 @@ function handleClose() {
                       目标价
                       <input v-model.number="form.targetPrice" type="number" min="0" step="0.01" class="input-field mt-2 number-font" />
                     </label>
+                    <div class="rounded-lg border px-3 py-3 text-sm" :class="riskRewardOk ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'">
+                      <div class="text-xs">系统计算盈亏比</div>
+                      <div class="mt-1 font-bold number-font">{{ riskRewardRatio == null ? '请填写有效三价' : `1 : ${riskRewardRatio.toFixed(2)}` }}</div>
+                    </div>
+                    <div class="flex items-center justify-between rounded-lg border px-3 py-3 text-sm md:col-span-3" :class="finalTradeDecision.tone">
+                      <span class="font-semibold">最终结论</span>
+                      <strong>{{ finalTradeDecision.label }}</strong>
+                    </div>
                   </div>
                 </div>
               </div>

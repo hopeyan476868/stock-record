@@ -14,10 +14,11 @@ export const BuyStockSchema = z.object({
   emotionTag: z.enum(['FOMO', '理性', '犹豫']).optional(),
 
   // 基本面检查
-  parentNetProfitGrowthOk: z.boolean().optional(),
-  grossMarginOk: z.boolean().optional(),
-  netProfitMarginOk: z.boolean().optional(),
-  assetLiabilityRatioOk: z.boolean().optional(),
+  revenueGrowthOk: z.boolean().optional(),
+  deductedNetProfitGrowthOk: z.boolean().optional(),
+  grossMarginChangeOk: z.boolean().optional(),
+  roicOk: z.boolean().optional(),
+  operatingCashFlowPositiveOk: z.boolean().optional(),
   riskRewardOk: z.boolean().optional(),
 
   // 换手率（用户填数字，>15% 时需确认方向）
@@ -27,17 +28,19 @@ export const BuyStockSchema = z.object({
   weeklyCloseAboveEma20Ok: z.boolean().optional(),
 
   // 价格行为策略
-  marketBackground: z.enum(['BULL_TREND', 'BEAR_TREND', 'TRADING_RANGE']).optional(),
-  positionPhase: z.enum(['PULLBACK', 'CONSOLIDATION', 'ACCELERATION', 'BOUNCE', 'REVERSAL_TRY', 'LOWER_EDGE', 'MIDDLE', 'UPPER_EDGE', 'IN_RANGE_CONSOLIDATION']).optional(),
-  concretePattern: z.enum([
-    'SHALLOW_PULLBACK', 'EMA21_TOUCH', 'CHANNEL_PULLBACK', 'DOUBLE_BOTTOM', 'DEEP_PULLBACK_HL_INTACT',
-    'HORIZONTAL_PLATFORM', 'TRIANGLE_CONTRACTION', 'CUP_HANDLE', 'WEDGE',
-    'BOUNCE_TO_RESISTANCE',
-    'FAILED_BREAKDOWN_RECLAIM', 'BULL_ENGULF_LOWER_EDGE',
-    'VALID_BREAKOUT', 'BREAKOUT_PULLBACK',
-    'REVERSAL_BREAKOUT_RETEST', 'DOUBLE_BOTTOM_CONFIRM',
-    'NONE'
+  marketBackground: z.enum(['STRONG_UP', 'NORMAL_UP', 'TRADING_RANGE', 'DOWN_TREND', 'UNCLEAR']).optional(),
+  tradingScenario: z.enum([
+    'SHALLOW_PULLBACK', 'TWO_LEG_PULLBACK', 'PLATFORM_CONSOLIDATION', 'FIRST_BREAKOUT_RETEST',
+    'DEEP_PULLBACK_DOUBLE_BOTTOM', 'DEEP_PULLBACK_BREAK_LH_RETEST', 'OVERHEATED',
+    'RANGE_LOWER_DOUBLE_BOTTOM', 'RANGE_LOWER_THREE_PUSH', 'RANGE_LOWER_BULL_ENGULF',
+    'RANGE_FAILED_BREAKDOWN_ZONE', 'RANGE_UPPER_TEST', 'RANGE_UPPER_RETEST', 'RANGE_MIDDLE',
+    'DOWN_THREE_PUSH_SUPPORT', 'DOWN_BREAK_LH_FIRST_PULLBACK', 'DOWN_BOUNCE_RESISTANCE', 'NO_SCENARIO'
   ]).optional(),
+  entryTrigger: z.enum([
+    'H1_CONFIRM', 'H2_CONFIRM', 'BULL_ENGULF_HIGH_BREAK', 'VOLUME_BREAKOUT',
+    'RETEST_TURN_STRONG', 'FAILED_BREAKDOWN_CONFIRM', 'NECKLINE_BREAK', 'NONE'
+  ]).optional(),
+  volumePriceConfirmed: z.boolean().optional(),
 
   // 推导结果（系统填充）
   strategyDecision: z.enum(['BUY', 'WATCH', 'DO_NOT_BUY', 'PASS']).optional(),

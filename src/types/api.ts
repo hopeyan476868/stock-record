@@ -1,4 +1,4 @@
-import type { MarketBackground, PositionPhase, ConcretePattern, StrategyDecision } from '../utils/buyStrategyEngine';
+import type { MarketBackground, TradingScenario, EntryTrigger, StrategyDecision } from '../utils/buyStrategyEngine';
 
 // 股票状态
 export type StockStatus = 'holding' | 'sold' | 'watching';
@@ -23,11 +23,12 @@ export interface Stock {
   buyPsychology?: string;
   emotionTag?: EmotionTag;
   // 基本面检查
-  parentNetProfitGrowthOk?: boolean;   // 净利润同比 ≥20%
-  grossMarginOk?: boolean;             // 毛利率 ≥ 30%
-  netProfitMarginOk?: boolean;         // 净利率 > 5%
-  assetLiabilityRatioOk?: boolean;     // 资产负债率 ≤60%
-  // 盈亏比（固定 ≥2，无 eq1 选项）
+  revenueGrowthOk?: boolean;                    // 营业总收入同比 ≥15%
+  deductedNetProfitGrowthOk?: boolean;          // 扣非净利润同比 ≥15%
+  grossMarginChangeOk?: boolean;                // 毛利率同比 ≥-3个百分点
+  roicOk?: boolean;                             // ROIC（TTM）≥8%
+  operatingCashFlowPositiveOk?: boolean;        // 经营现金流 >0
+  // 系统根据触发价、止损价、目标价计算
   riskRewardOk?: boolean;
   // 换手率（用户填数字，>15% 时需确认方向）
   turnoverRate?: number;
@@ -36,8 +37,9 @@ export interface Stock {
   weeklyCloseAboveEma20Ok?: boolean;
   // 价格行为策略
   marketBackground?: MarketBackground;
-  positionPhase?: PositionPhase;
-  concretePattern?: ConcretePattern;
+  tradingScenario?: TradingScenario;
+  entryTrigger?: EntryTrigger;
+  volumePriceConfirmed?: boolean;
   // 系统推导
   strategyDecision?: StrategyDecision;
   entryType?: string;
@@ -69,7 +71,8 @@ export interface Stock {
   createdAt: string;
   updatedAt: string;
   /** @deprecated legacy fields — kept for reading old localStorage records only */
-  roicOk?: boolean; operatingCashFlowPositiveOk?: boolean; revenueGrowthOk?: boolean; profitGrowthOk?: boolean;
+  parentNetProfitGrowthOk?: boolean; grossMarginOk?: boolean; netProfitMarginOk?: boolean;
+  assetLiabilityRatioOk?: boolean; profitGrowthOk?: boolean;
   riskRewardRatio?: string; turnoverRateOk?: boolean; tradingAmountOk?: boolean;
   superLargeNetInflowOk?: boolean; superLargeNetInflowRatioOk?: boolean;
   weeklyEma20SlopeOk?: boolean; forceContinued?: boolean; netMarginOk?: boolean;
@@ -77,6 +80,7 @@ export interface Stock {
   marketState?: string; buyStrategy?: string; technicalPattern?: string;
   patternRemark?: string; marketStructure?: string; trendQuality?: string;
   priceLocation?: string; currentStructure?: string; riskState?: string;
+  positionPhase?: string; concretePattern?: string;
   entryTypes?: string[]; entryOptions?: string[];
   legacyTrigger?: string;
 }
