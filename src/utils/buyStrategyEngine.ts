@@ -195,24 +195,29 @@ export function evaluateBuyStrategy(input: StrategyInput): StrategyOutput {
     if (pos === 'PULLBACK') {
       if (pat === 'SHALLOW_PULLBACK') {
         return out('BUY', 'H1', 'none',
-          '强势上涨中的浅回调，H1 可用。止损设在信号 K 线低点，不扛单。');
+          '强势上涨中的浅回调，H1 可用。止损设在信号 K 线低点，不扛单。'
+          + '【量价】回调缩量 > 放量，回调缩量更可靠；若放量回调，H1 降级为 H2。');
       }
       if (pat === 'EMA21_TOUCH') {
         return out('BUY', 'H2', 'none',
-          'EMA21 附近获得支撑的 H2。H1 不参与，等二次确认。');
+          'EMA21 附近获得支撑的 H2。H1 不参与，等二次确认。'
+          + '【量价】关注触碰 EMA21 当日的成交量：缩量触碰 + 小实体 K 线 = 有效支撑；放量下破 EMA21 = 支撑失效。');
       }
       if (pat === 'CHANNEL_PULLBACK') {
         return out('BUY', 'CHANNEL_PULLBACK', 'none',
-          '窄上升通道下轨回调，通道低吸。止损通道下轨下方。');
+          '窄上升通道下轨回调，通道低吸。止损通道下轨下方。'
+          + '【量价】通道内正常回调应缩量；触碰下轨时若出现放量长下影或阳线反包，确认有效性更高。');
       }
       if (pat === 'DOUBLE_BOTTOM') {
         return out('BUY', 'DOUBLE_BOTTOM_CONFIRMATION', 'none',
-          '上涨趋势中的双底确认，说明回调结束。设第二个底下方止损。');
+          '上涨趋势中的双底确认，说明回调结束。设第二个底下方止损。'
+          + '【量价】第二个底成交量应明显小于第一个底（卖压衰竭）；突破颈线时应放量确认。');
       }
       if (pat === 'DEEP_PULLBACK_HL_INTACT') {
         return watch('NONE', 'divergence',
           '深回调但最后一个 HL 未被破坏，上涨背景不变。但价格已跌穿 EMA21，不急于左侧抄底。'
-          + '等待重新站回 EMA21 或出现底部结构（双底/假破收回）后再入场。');
+          + '等待重新站回 EMA21 或出现底部结构（双底/假破收回）后再入场。'
+          + '【量价】关注 HL 附近是否有放量止跌信号（长下影、阳线反包）；若持续缩量阴跌，HL 大概率守不住。');
       }
       return noBuy('回调中的具体形态不合法，请重新选择。');
     }
@@ -220,22 +225,26 @@ export function evaluateBuyStrategy(input: StrategyInput): StrategyOutput {
     if (pos === 'CONSOLIDATION') {
       if (pat === 'HORIZONTAL_PLATFORM') {
         return watch('PLATFORM_BREAKOUT', 'none',
-          '水平平台整理。不提前入场，等平台突破或突破回踩确认。',
+          '水平平台整理。不提前入场，等平台突破或突破回踩确认。'
+          + '【量价】突破日应明显放量（> 5日均量 1.5倍）；无量突破容易假突破。',
           ['PLATFORM_BREAKOUT', 'BREAKOUT_PULLBACK']);
       }
       if (pat === 'TRIANGLE_CONTRACTION') {
         return watch('TRIANGLE_BREAKOUT', 'none',
-          '三角收敛末端，等方向突破或突破回踩确认。不提前赌方向。',
+          '三角收敛末端，等方向突破或突破回踩确认。不提前赌方向。'
+          + '【量价】三角收敛内应持续缩量；突破时放量确认方向。缩量突破不可信。',
           ['TRIANGLE_BREAKOUT', 'BREAKOUT_PULLBACK']);
       }
       if (pat === 'CUP_HANDLE') {
         return watch('CUP_HANDLE_BREAKOUT', 'none',
-          '杯柄整理形态。等杯柄突破或突破回踩确认。',
+          '杯柄整理形态。等杯柄突破或突破回踩确认。'
+          + '【量价】杯底应缩量、杯柄应缩量；突破杯柄上轨时应放量为佳。',
           ['CUP_HANDLE_BREAKOUT', 'BREAKOUT_PULLBACK']);
       }
       if (pat === 'WEDGE') {
         return watch('NONE', 'divergence',
-          '楔形整理：通常是动量衰竭信号。不急于入场，等向下突破或楔形转为平台再评估。');
+          '楔形整理：通常是动量衰竭信号。不急于入场，等向下突破或楔形转为平台再评估。'
+          + '【量价】上升楔形内部通常价涨量缩，是背离信号；向下突破往往伴随放量。');
       }
       return noBuy('整理形态不合法。');
     }
@@ -251,13 +260,15 @@ export function evaluateBuyStrategy(input: StrategyInput): StrategyOutput {
       if (pat === 'REVERSAL_BREAKOUT_RETEST') {
         return watch('REVERSAL_BREAKOUT_PULLBACK', 'none',
           '下降背景唯一例外：已出现反转突破（突破关键压力位），等回踩确认不破后再评估。'
-          + '确认标准：回踩不破突破 K 线低点或 EMA21。',
+          + '确认标准：回踩不破突破 K 线低点或 EMA21。'
+          + '【量价】突破时应放量；回踩时应缩量。若回踩放量下破，反转失败。',
           ['REVERSAL_BREAKOUT_PULLBACK']);
       }
       if (pat === 'DOUBLE_BOTTOM_CONFIRM') {
         return watch('DOUBLE_BOTTOM_CONFIRMATION', 'none',
           '双底确认是潜在趋势反转信号，但下降背景的胜率低于上涨背景。'
-          + '等右侧确认（突破颈线或回踩不破）后再评估。',
+          + '等右侧确认（突破颈线或回踩不破）后再评估。'
+          + '【量价】第二个底缩量优于放量；突破颈线时需放量确认。',
           ['DOUBLE_BOTTOM_CONFIRMATION', 'BREAKOUT_PULLBACK']);
       }
       return noBuy('反转试探形态不合法。');
@@ -278,12 +289,14 @@ export function evaluateBuyStrategy(input: StrategyInput): StrategyOutput {
       }
       if (pat === 'FAILED_BREAKDOWN_RECLAIM') {
         return watch('FAILED_BREAKDOWN_RECLAIM', 'none',
-          '假跌破区间下沿后快速收回，这是多头陷阱失效的信号。等收回确认。',
+          '假跌破区间下沿后快速收回，这是多头陷阱失效的信号。等收回确认。'
+          + '【量价】假跌破时应放量（恐慌盘出逃），收回时应缩量或出现阳线反包。',
           ['FAILED_BREAKDOWN_RECLAIM', 'DOUBLE_BOTTOM_CONFIRMATION']);
       }
       if (pat === 'BULL_ENGULF_LOWER_EDGE') {
         return out('BUY', 'LOWER_EDGE_BULL_ENGULF', 'none',
-          '区间底部阳线反包，短期多头占优。止损设反包 K 线低点。区间底部不追涨，低吸为主。');
+          '区间底部阳线反包，短期多头占优。止损设反包 K 线低点。区间底部不追涨，低吸为主。'
+          + '【量价】反包 K 线应放量 > 前一根；放量越大，反包有效性越高。');
       }
       return noBuy('下沿形态不合法。');
     }
@@ -291,12 +304,14 @@ export function evaluateBuyStrategy(input: StrategyInput): StrategyOutput {
     if (pos === 'UPPER_EDGE') {
       if (pat === 'VALID_BREAKOUT') {
         return watch('EFFECTIVE_BREAKOUT', 'none',
-          '区间上方有效突破。不追，等突破后回踩确认不破再介入。',
+          '区间上方有效突破。不追，等突破后回踩确认不破再介入。'
+          + '【量价】有效突破应放量 > 区间均量 1.5 倍；若缩量突破，大概率假突破。',
           ['EFFECTIVE_BREAKOUT', 'BREAKOUT_PULLBACK']);
       }
       if (pat === 'BREAKOUT_PULLBACK') {
         return out('BUY', 'BREAKOUT_PULLBACK', 'none',
-          '突破后回踩原压力位不破，重新转强。这是区间突破的标准入场点。');
+          '突破后回踩原压力位不破，重新转强。这是区间突破的标准入场点。'
+          + '【量价】回踩日应缩量；再次上攻时需放量配合。');
       }
       return noBuy('上沿不追买，等有效突破信号。');
     }
